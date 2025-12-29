@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // This tells Next.js to correctly process the modern code in Firebase
+  // This is the magic line that fixes the error you see
   transpilePackages: ['undici', 'firebase', '@firebase/auth'],
 }
 
