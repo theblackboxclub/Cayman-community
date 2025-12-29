@@ -1,20 +1,20 @@
-# Force the system to use Node 18 (The version we need)
+# 1. Force the system to use Node 18 (The version we need)
 FROM node:18-alpine
 
-# Create the folder for the app
+# 2. Set the working directory
 WORKDIR /app
 
-# Copy the package.json file
+# 3. Copy package configuration first (for better caching)
 COPY package.json ./
 
-# Install the dependencies (Clean install)
+# 4. Install dependencies (Clean install)
 RUN npm install
 
-# Copy the rest of your app files
+# 5. Copy the rest of your app files
 COPY . .
 
-# Build the app (This reads your Environment Variables)
+# 6. Build the app
 RUN npm run build
 
-# Start the app
+# 7. Start the app
 CMD ["npm", "start"]
