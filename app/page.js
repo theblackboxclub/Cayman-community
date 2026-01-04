@@ -1,74 +1,88 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { db } from '../firebase'; // Connect to your database
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 export default function Home() {
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      community: "c/CaymanFitness",
-      author: "gym_rat_ky",
-      time: "4h",
-      title: "Best gym for weightlifting in George Town?",
-      body: "I'm moving to GT next week. Looking for a place with squat racks that isn't too crowded at 5pm.",
-      votes: 12,
-      comments: 4,
-      hasImage: false
-    },
-    {
-      id: 2,
-      community: "c/IslandJobs",
-      author: "recruiter_jane",
-      time: "1d",
-      title: "[Hiring] Junior Developer at Tech City",
-      body: "We are looking for someone who knows React and Next.js. PM me for details!",
-      votes: 45,
-      comments: 18,
-      hasImage: true, 
-      imageColor: "bg-blue-100"
-    },
-    {
-      id: 3,
-      community: "c/Stocks",
-      author: "investor_bro",
-      time: "10h",
-      title: "Total market fund has underperformed S&P 500",
-      body: "When I began investing 10 years ago, many recommended a total market fund...",
-      votes: 109,
-      comments: 81,
-      hasImage: false
-    }
-  ]);
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // 1. LISTEN TO THE DATABASE IN REAL-TIME
+  useEffect(() => {
+    // Create a query to get posts, sorted by newest first
+    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+
+    // Listen for changes
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const postsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        // Handle the timestamp safely
+        time: doc.data().createdAt ? formatTime(doc.data().createdAt.toDate()) : 'Just now'
+      }));
+      setPosts(postsData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe(); // Cleanup listener
+  }, []);
+
+  // Simple helper to make times look like "2h", "5m"
+  const formatTime = (date) => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) return `${diffInSeconds}s`;
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays}d`;
+  };
 
   return (
-    <div className="min-h-screen bg-[#DAE0E6] pb-20"> {/* Reddit Gray Background + padding for bottom nav */}
+    <div className="min-h-screen bg-[#DAE0E6] pb-20"> 
 
       {/* --- TOP NAVIGATION BAR --- */}
       <div className="bg-white px-4 py-2 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-        {/* Menu Icon */}
         <button className="p-2">
           <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         
-        {/* Search Bar */}
         <div className="flex-1 mx-3 bg-gray-100 rounded-full px-4 py-2 flex items-center">
           <svg className="w-5 h-5 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <input type="text" placeholder="Find anything" className="bg-transparent outline-none text-sm w-full placeholder-gray-500" />
         </div>
 
-        {/* User Avatar */}
         <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
       </div>
 
       {/* --- FEED --- */}
       <div className="max-w-md mx-auto md:max-w-2xl md:mt-4">
+        
+        {/* Loading State */}
+        {loading && (
+           <div className="p-10 text-center text-gray-500 font-bold">Loading Cayman... 🌴</div>
+        )}
+
+        {/* Empty State */}
+        {!loading && posts.length === 0 && (
+           <div className="p-10 text-center text-gray-500">
+             <div className="text-4xl mb-2">🦗</div>
+             <div className="font-bold">It's quiet here.</div>
+             <p>Be the first to post something!</p>
+           </div>
+        )}
+
+        {/* Real Posts */}
         {posts.map((post) => (
           <div key={post.id} className="bg-white mb-2 md:rounded-md border-b md:border border-gray-200">
             
             {/* Post Header */}
             <div className="px-4 pt-3 flex items-center text-xs text-gray-500 mb-2">
-              {/* Community Icon */}
               <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold mr-2 text-sm">
-                {post.community.charAt(2)}
+                {post.community ? post.community.charAt(2) : "G"}
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center">
@@ -86,17 +100,8 @@ export default function Home() {
               <p className="text-sm text-gray-500 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
             </div>
 
-            {/* Fake Image (if post has one) */}
-            {post.hasImage && (
-              <div className={`w-full h-48 ${post.imageColor} flex items-center justify-center text-blue-500 font-bold mb-2`}>
-                [ Image Placeholder ]
-              </div>
-            )}
-
-            {/* Post Footer (Action Bar) */}
+            {/* Action Bar */}
             <div className="px-4 py-2 flex items-center justify-between border-t border-gray-50">
-              
-              {/* Vote Buttons (Pill Shape) */}
               <div className="flex items-center bg-gray-100 rounded-full px-2 py-1">
                 <button className="p-1 hover:bg-gray-200 rounded-full">
                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
@@ -106,19 +111,14 @@ export default function Home() {
                   <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </button>
               </div>
-
-              {/* Comment Button */}
               <div className="flex items-center bg-gray-100 rounded-full px-3 py-1 space-x-2">
                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
                 <span className="text-sm font-bold text-gray-700">{post.comments}</span>
               </div>
-
-              {/* Share Button */}
               <div className="flex items-center bg-gray-100 rounded-full px-3 py-1 space-x-2">
                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                  <span className="text-sm font-bold text-gray-700">Share</span>
               </div>
-
             </div>
           </div>
         ))}
@@ -152,7 +152,6 @@ export default function Home() {
            <span className="text-[10px] mt-1">Inbox</span>
         </div>
       </div>
-
     </div>
   );
 }
