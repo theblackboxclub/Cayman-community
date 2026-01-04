@@ -90,15 +90,10 @@ export default function Home() {
           <input type="text" placeholder="Search" className="bg-transparent outline-none text-sm w-full placeholder-gray-500" />
         </div>
 
-        {/* --- PROFILE LINK (FIXED) --- */}
+        {/* --- PROFILE LINK --- */}
         <Link href="/profile">
-          <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-sm cursor-pointer hover:opacity-80 transition">
-             {/* Optional: Add user initial if loaded */}
-             {currentUser && (
-               <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold">
-                 {currentUser.email.charAt(0).toUpperCase()}
-               </div>
-             )}
+          <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-sm cursor-pointer hover:opacity-80 transition flex items-center justify-center text-white text-xs font-bold">
+             {currentUser ? currentUser.email.charAt(0).toUpperCase() : "?"}
           </div>
         </Link>
       </div>
@@ -197,28 +192,39 @@ export default function Home() {
 
       {/* --- BOTTOM NAV --- */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex justify-between items-center z-50">
+        
+        {/* HOME BUTTON */}
         <div className="flex flex-col items-center cursor-pointer" onClick={() => setSelectedCommunity("All")}>
           <svg className={`w-6 h-6 ${selectedCommunity === 'All' ? 'text-black' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
           <span className={`text-[10px] font-bold mt-1 ${selectedCommunity === 'All' ? 'text-black' : 'text-gray-400'}`}>Home</span>
         </div>
-        <div className="flex flex-col items-center text-gray-400">
+        
+        {/* COMMUNITIES BUTTON (Just visual for now, or scrolls top) */}
+        <div className="flex flex-col items-center text-gray-400 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth'})}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg>
           <span className="text-[10px] mt-1">Communities</span>
         </div>
-        <a href="/create" className="flex flex-col items-center -mt-6">
-          <div className="bg-black text-white p-3 rounded-full shadow-lg">
+        
+        {/* CREATE BUTTON */}
+        <Link href="/create" className="flex flex-col items-center -mt-6">
+          <div className="bg-black text-white p-3 rounded-full shadow-lg hover:bg-gray-800 transition">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           </div>
           <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
-        </a>
-        <div className="flex flex-col items-center text-gray-400">
+        </Link>
+        
+        {/* CHAT BUTTON (Placeholder) */}
+        <div className="flex flex-col items-center text-gray-400 cursor-not-allowed opacity-50">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
            <span className="text-[10px] mt-1">Chat</span>
         </div>
-        <div className="flex flex-col items-center text-gray-400">
+        
+        {/* INBOX BUTTON (FIXED) */}
+        <Link href="/inbox" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
-        </div>
+        </Link>
+
       </div>
     </div>
   );
