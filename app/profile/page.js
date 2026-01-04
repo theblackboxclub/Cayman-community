@@ -11,57 +11,61 @@ import Link from 'next/link';
 export default function Profile() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [username, setUsername] = useState('Loading...');
+  const [username, setUsername] = useState('');
   const [myPosts, setMyPosts] = useState([]);
   const [stats, setStats] = useState({ postCount: 0, totalLikes: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Setup the listener
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
-        router.push('/signup');
+        setLoading(false);
+        router.push('/signup'); // Redirect if not logged in
         return;
       }
+      
       setUser(currentUser);
 
+      // Start fetching data immediately
       try {
-        // A. Get Username
+        // Parallel requests for Speed: Get Name AND Get Posts at the same time
         const userRef = doc(db, "users", currentUser.uid);
-        const userSnap = await getDoc(userRef);
+        const postsQuery = query(collection(db, "posts"), where("userId", "==", currentUser.uid));
+
+        const [userSnap, postsSnap] = await Promise.all([
+          getDoc(userRef),
+          getDocs(postsQuery)
+        ]);
+
+        // Handle Username
         if (userSnap.exists() && userSnap.data().username) {
           setUsername(userSnap.data().username);
         } else {
           setUsername(currentUser.email.split('@')[0]);
         }
 
-        // B. Get My Posts (FIXED: Removed 'orderBy' to avoid Index Error)
-        const q = query(collection(db, "posts"), where("userId", "==", currentUser.uid));
-        const querySnapshot = await getDocs(q);
-        
-        const postsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // Sort in Javascript (Newest First)
-        postsData.sort((a, b) => {
-           return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
-        });
-
+        // Handle Posts
+        const postsData = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Sort in Javascript (Fast)
+        postsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         setMyPosts(postsData);
 
-        // C. Calculate Stats
+        // Calculate Stats
         const totalLikes = postsData.reduce((acc, curr) => acc + (curr.votes || 0), 0);
         setStats({ postCount: postsData.length, totalLikes });
 
       } catch (error) {
         console.error("Error loading profile:", error);
       } finally {
-        // Ensure loading stops even if there is an error
-        setLoading(false);
+        setLoading(false); // Stop loading no matter what
       }
     });
+
     return () => unsubscribe();
   }, [router]);
 
-  // Shuffle Username
+  // Shuffle Username logic
   const handleShuffleName = async () => {
     if (!user) return;
     const confirm = window.confirm("Are you sure? This will change your name for ALL future posts.");
@@ -76,7 +80,6 @@ export default function Profile() {
     await updateDoc(userRef, { username: newName });
     
     setUsername(newName);
-    alert(`You are now u/${newName}!`);
   };
 
   const handleLogout = async () => {
@@ -86,7 +89,7 @@ export default function Profile() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-gray-500 font-bold animate-pulse">Loading Profile...</div>
+      <div className="text-gray-400 font-bold animate-pulse">Loading Profile...</div>
     </div>
   );
 
@@ -105,7 +108,7 @@ export default function Profile() {
       {/* Profile Card */}
       <div className="bg-white p-6 mb-4 flex flex-col items-center border-b border-gray-200">
         <div className="w-20 h-20 bg-green-500 rounded-full border-4 border-white shadow-lg mb-3 flex items-center justify-center text-3xl text-white font-bold">
-          {username.charAt(0)}
+          {username ? username.charAt(0) : '?'}
         </div>
         
         <h1 className="text-2xl font-black text-gray-900">u/{username}</h1>
