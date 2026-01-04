@@ -4,14 +4,14 @@ import { useRouter } from 'next/navigation';
 import { db, auth } from '../../../firebase';
 import { 
   doc, getDoc, collection, addDoc, 
-  query, where, getDocs, orderBy, onSnapshot, 
+  query, where, onSnapshot, 
   serverTimestamp, setDoc, updateDoc, increment
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function PostDetails({ params }) {
   const router = useRouter();
-  const { id } = params; // The Post ID
+  const { id } = params; 
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
@@ -35,50 +35,45 @@ export default function PostDetails({ params }) {
       setLoading(false);
     });
 
-    // Fetch Comments
-    const q = query(collection(db, "comments"), where("postId", "==", id), orderBy("createdAt", "asc"));
+    // Fetch Comments (FIXED: Removed orderBy to prevent Index Errors)
+    const q = query(collection(db, "comments"), where("postId", "==", id));
     const unsubComments = onSnapshot(q, (snapshot) => {
       const commentsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setComments(commentsData);
+      
+      // Sort in the app instead of the database (Newest at bottom)
+      const sortedComments = commentsData.sort((a, b) => {
+        return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
+      });
+      
+      setComments(sortedComments);
     });
 
     return () => { unsubscribe(); unsubPost(); unsubComments(); };
   }, [id]);
 
 
-  // 2. NAME GENERATOR (UNIQUE ENFORCER)
+  // 2. NAME GENERATOR (FIXED: Ensures name is saved before continuing)
   const getUniqueUsername = async (uid) => {
-    // A. Check if user already has a saved name
     const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
 
+    // A. If user already has a name, return it immediately
     if (userSnap.exists() && userSnap.data().username) {
-      return userSnap.data().username; // Return existing name
+      console.log("Found existing name:", userSnap.data().username);
+      return userSnap.data().username;
     }
 
-    // B. If not, generate a new unique one
-    let isUnique = false;
-    let finalName = "";
+    // B. If not, generate a new one
+    console.log("Generating new name...");
+    const adjectives = ["Salty", "Breezy", "Grand", "Little", "Coral", "Sunny", "Happy", "Lazy"];
+    const nouns = ["Iguana", "Stingray", "Turtle", "Rooster", "Shark", "Marlin", "Crab"];
+    const randomNum = Math.floor(Math.random() * 9999);
+    const finalName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${randomNum}`;
 
-    while (!isUnique) {
-      // Generate Candidate
-      const adjectives = ["Salty", "Breezy", "Grand", "Little", "Coral", "Sunny", "Happy", "Lazy"];
-      const nouns = ["Iguana", "Stingray", "Turtle", "Rooster", "Shark", "Marlin", "Crab"];
-      const randomNum = Math.floor(Math.random() * 9999); // 4 digits for extra uniqueness
-      const candidate = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${randomNum}`;
-
-      // Check Database for collision
-      const q = query(collection(db, "users"), where("username", "==", candidate));
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        isUnique = true;
-        finalName = candidate;
-      }
-    }
-
-    // C. Save this name permanently to the user's profile
+    // C. SAVE IT PERMANENTLY
+    // We use setDoc with merge: true to ensure it saves safely
     await setDoc(userRef, { username: finalName }, { merge: true });
+    
     return finalName;
   };
 
@@ -89,19 +84,19 @@ export default function PostDetails({ params }) {
     if (!user) return alert("Please sign in to comment.");
 
     try {
-      // Get (or create) the unique username
+      // 1. Get Identity (Waits for database to confirm)
       const username = await getUniqueUsername(user.uid);
 
-      // Save Comment
+      // 2. Save Comment
       await addDoc(collection(db, "comments"), {
         postId: id,
         text: newComment,
-        author: username, // Use the persistent unique name
+        author: username, 
         userId: user.uid,
         createdAt: serverTimestamp()
       });
 
-      // Update Post Comment Count
+      // 3. Update Post Count
       const postRef = doc(db, "posts", id);
       await updateDoc(postRef, {
         comments: increment(1)
@@ -110,11 +105,11 @@ export default function PostDetails({ params }) {
       setNewComment(''); // Clear input
     } catch (error) {
       console.error("Error commenting:", error);
-      alert("Failed to post comment");
+      alert("Failed to post comment. Check console.");
     }
   };
 
-  if (loading) return <div className="p-10 text-center">Loading...</div>;
+  if (loading) return <div className="p-10 text-center font-bold text-gray-500">Loading Discussion... 🌴</div>;
   if (!post) return <div className="p-10 text-center">Post not found.</div>;
 
   return (
@@ -139,28 +134,34 @@ export default function PostDetails({ params }) {
            <h1 className="text-xl font-bold mb-2">{post.title}</h1>
            <p className="text-gray-800 leading-relaxed mb-4">{post.body}</p>
            <div className="flex items-center text-gray-500 text-sm gap-4">
-              <span>❤️ {post.votes} Likes</span>
+              <span>❤️ {post.votes || 0} Likes</span>
               <span>💬 {comments.length} Comments</span>
            </div>
         </div>
 
         {/* COMMENTS SECTION */}
-        <div className="bg-white min-h-[50vh]">
+        <div className="bg-white min-h-[50vh] pb-20">
           {comments.map((comment) => (
-            <div key={comment.id} className="p-4 border-b border-gray-100">
-              <div className="flex items-center mb-1">
-                <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-bold flex items-center justify-center mr-2">
-                  {comment.author.charAt(0)}
-                </div>
-                <span className="font-bold text-sm text-gray-800">u/{comment.author}</span>
+            <div key={comment.id} className="p-4 border-b border-gray-100 flex gap-3">
+              {/* Avatar Bubble */}
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-xs font-bold flex items-center justify-center">
+                {comment.author ? comment.author.charAt(0) : "?"}
               </div>
-              <p className="text-gray-700 text-sm ml-8">{comment.text}</p>
+              
+              {/* Comment Body */}
+              <div>
+                <div className="flex items-baseline mb-1">
+                  <span className="font-bold text-sm text-gray-900 mr-2">u/{comment.author}</span>
+                </div>
+                <p className="text-gray-800 text-sm leading-snug">{comment.text}</p>
+              </div>
             </div>
           ))}
           
           {comments.length === 0 && (
-            <div className="p-8 text-center text-gray-400">
-              No comments yet. Start the conversation!
+            <div className="p-10 text-center text-gray-400">
+              <div className="text-2xl mb-2">💬</div>
+              No comments yet.<br/>Be the first to reply!
             </div>
           )}
         </div>
@@ -168,13 +169,13 @@ export default function PostDetails({ params }) {
       </div>
 
       {/* COMMENT INPUT BAR (Fixed at bottom) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2 z-50">
         <input 
           type="text" 
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
           placeholder="Add a comment..." 
-          className="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none text-sm"
+          className="flex-1 bg-gray-100 rounded-full px-4 py-3 outline-none text-sm"
         />
         <button 
           onClick={handleComment}
