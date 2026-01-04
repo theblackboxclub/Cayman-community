@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { db, auth } from '../../firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function CreatePost() {
@@ -10,12 +10,12 @@ export default function CreatePost() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [community, setCommunity] = useState('c/General');
-  const [mediaUrl, setMediaUrl] = useState(''); // Stores Link or Image URL
-  const [mediaType, setMediaType] = useState('none'); // 'image' or 'link'
+  const [mediaUrl, setMediaUrl] = useState(''); 
+  const [mediaType, setMediaType] = useState('none'); 
   const [loading, setLoading] = useState(false);
   
   const [user, setUser] = useState(null);
-  const [randomName, setRandomName] = useState('');
+  const [randomName, setRandomName] = useState('Loading...'); // Placeholder
   const [useRandomName, setUseRandomName] = useState(true);
 
   const communities = [
@@ -23,7 +23,7 @@ export default function CreatePost() {
     "c/AskLocals", "c/Events", "c/RealEstate"
   ];
 
-  // --- NAME GENERATOR ---
+  // Generator (Only used if they don't have a name yet)
   const generateCaymanName = () => {
     const adjectives = ["Salty", "Breezy", "Grand", "Little", "Coral", "Sunny", "Hidden", "Ironshore"];
     const nouns = ["Iguana", "Stingray", "Turtle", "Rooster", "Conch", "Pirate", "Diver", "Snapper"];
@@ -33,11 +33,30 @@ export default function CreatePost() {
     return `${randomAdj}${randomNoun}${randomNumber}`;
   };
 
+  // 1. LOAD USER & FETCH SAVED NAME
   useEffect(() => {
-    setRandomName(generateCaymanName());
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) router.push('/signup');
-      else setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push('/signup');
+      } else {
+        setUser(currentUser);
+        
+        // CHECK DATABASE FOR EXISTING NAME
+        const userRef = doc(db, "users", currentUser.uid);
+        try {
+          const snap = await getDoc(userRef);
+          if (snap.exists() && snap.data().username) {
+            // Found saved name! Use it.
+            setRandomName(snap.data().username);
+          } else {
+            // No name saved? Generate a new one.
+            setRandomName(generateCaymanName());
+          }
+        } catch (error) {
+          console.error("Error fetching name:", error);
+          setRandomName(generateCaymanName());
+        }
+      }
     });
     return () => unsubscribe();
   }, [router]);
@@ -47,9 +66,6 @@ export default function CreatePost() {
     setLoading(true);
 
     const authorName = useRandomName ? randomName : user.email.split('@')[0];
-    
-    // If using random name, try to save it to user profile for consistency if they want (Optional logic)
-    // For now we just post with it.
 
     try {
       await addDoc(collection(db, "posts"), {
@@ -60,7 +76,6 @@ export default function CreatePost() {
         userId: useRandomName ? "hidden" : user.uid,
         votes: 1,
         comments: 0,
-        // Save the Media
         mediaUrl: mediaUrl,
         mediaType: mediaType, 
         createdAt: serverTimestamp()
@@ -94,7 +109,7 @@ export default function CreatePost() {
               <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Posting As</span>
               <div className="flex items-center gap-2">
                 <span className="text-xl font-black text-gray-800">u/{useRandomName ? randomName : (user ? user.email.split('@')[0] : '...')}</span>
-                {useRandomName && <button onClick={() => setRandomName(generateCaymanName())} className="bg-white p-1 rounded-full shadow-sm border" title="Shuffle">🎲</button>}
+                {/* Removed Shuffle button here to prevent accidental changing. Change name in Profile instead. */}
               </div>
             </div>
             <div className="flex items-center gap-2">
