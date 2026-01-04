@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../firebase'; // Import Auth to know WHO is liking
+import { db, auth } from '../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
   collection, 
@@ -42,26 +42,24 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // 3. SMART LIKE HANDLER
+  // 3. TOGGLE LIKE
   const handleLike = async (post) => {
     if (!currentUser) return alert("Please sign in to like posts!");
 
     const postRef = doc(db, "posts", post.id);
-    
-    // Check if the current user has already liked this specific post
     const isLiked = post.likedBy?.includes(currentUser.uid);
 
     if (isLiked) {
-      // IF ALREADY LIKED -> UNLIKE IT
+      // UNLIKE: Remove ID and subtract 1
       await updateDoc(postRef, {
         votes: increment(-1),
-        likedBy: arrayRemove(currentUser.uid) // Remove ID from list
+        likedBy: arrayRemove(currentUser.uid)
       });
     } else {
-      // IF NOT LIKED -> LIKE IT
+      // LIKE: Add ID and add 1
       await updateDoc(postRef, {
         votes: increment(1),
-        likedBy: arrayUnion(currentUser.uid) // Add ID to list
+        likedBy: arrayUnion(currentUser.uid)
       });
     }
   };
@@ -107,7 +105,7 @@ export default function Home() {
         )}
 
         {posts.map((post) => {
-          // Check if user liked THIS post to decide the heart color
+          // Check if user liked THIS post
           const isLiked = post.likedBy?.includes(currentUser?.uid);
 
           return (
@@ -136,19 +134,22 @@ export default function Home() {
               {/* ACTION BAR */}
               <div className="px-4 py-3 flex items-center gap-6 border-t border-gray-50 text-gray-500">
                 
-                {/* Like Button */}
+                {/* LIKE BUTTON - VISUAL LOGIC FIXED */}
                 <button 
                   onClick={() => handleLike(post)}
-                  className={`flex items-center gap-2 transition-colors group ${isLiked ? "text-red-500" : "hover:text-red-500"}`}
+                  className="flex items-center gap-2 group focus:outline-none"
                 >
-                  {/* Conditional Heart: Filled if liked, Outline if not */}
                   {isLiked ? (
-                    <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                    // 1. IF LIKED: Filled Red Heart
+                    <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                   ) : (
-                    <svg className="w-5 h-5 group-hover:fill-red-500 group-active:scale-125 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                    // 2. IF NOT LIKED: Gray Outline Heart (Red on Hover only)
+                    <svg className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                   )}
                   
-                  <span className="text-sm font-bold">{post.votes || 0}</span>
+                  <span className={`text-sm font-bold ${isLiked ? "text-red-500" : "text-gray-500 group-hover:text-red-500"}`}>
+                    {post.votes || 0}
+                  </span>
                 </button>
 
                 {/* Comment Button */}
