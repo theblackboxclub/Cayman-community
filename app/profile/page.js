@@ -33,6 +33,7 @@ export default function Profile() {
         const userRef = doc(db, "users", currentUser.uid);
         const postsQuery = query(collection(db, "posts"), where("userId", "==", currentUser.uid));
 
+        // Wait for both to finish
         const [userSnap, postsSnap] = await Promise.all([
           getDoc(userRef),
           getDocs(postsQuery)
@@ -47,8 +48,10 @@ export default function Profile() {
 
         // Handle Posts
         const postsData = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Sort in Javascript (Fast)
+        
+        // Sort in Javascript (Fast & avoids Index errors)
         postsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        
         setMyPosts(postsData);
 
         // Calculate Stats
