@@ -15,7 +15,7 @@ export default function CreatePost() {
   const [loading, setLoading] = useState(false);
   
   const [user, setUser] = useState(null);
-  const [randomName, setRandomName] = useState('Loading...'); // Placeholder
+  const [randomName, setRandomName] = useState('Loading...'); 
   const [useRandomName, setUseRandomName] = useState(true);
 
   const communities = [
@@ -23,7 +23,6 @@ export default function CreatePost() {
     "c/AskLocals", "c/Events", "c/RealEstate"
   ];
 
-  // Generator (Only used if they don't have a name yet)
   const generateCaymanName = () => {
     const adjectives = ["Salty", "Breezy", "Grand", "Little", "Coral", "Sunny", "Hidden", "Ironshore"];
     const nouns = ["Iguana", "Stingray", "Turtle", "Rooster", "Conch", "Pirate", "Diver", "Snapper"];
@@ -33,7 +32,6 @@ export default function CreatePost() {
     return `${randomAdj}${randomNoun}${randomNumber}`;
   };
 
-  // 1. LOAD USER & FETCH SAVED NAME
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
@@ -41,15 +39,12 @@ export default function CreatePost() {
       } else {
         setUser(currentUser);
         
-        // CHECK DATABASE FOR EXISTING NAME
         const userRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userRef);
           if (snap.exists() && snap.data().username) {
-            // Found saved name! Use it.
             setRandomName(snap.data().username);
           } else {
-            // No name saved? Generate a new one.
             setRandomName(generateCaymanName());
           }
         } catch (error) {
@@ -65,6 +60,7 @@ export default function CreatePost() {
     if (!title) return alert("Please enter a title!");
     setLoading(true);
 
+    // VISUAL IDENTITY: This is what the public sees
     const authorName = useRandomName ? randomName : user.email.split('@')[0];
 
     try {
@@ -73,7 +69,11 @@ export default function CreatePost() {
         body: body,
         community: community,
         author: authorName,
-        userId: useRandomName ? "hidden" : user.uid,
+        
+        // OWNERSHIP ID: We ALWAYS save the real ID now, so you can delete it later.
+        // The public never sees this ID, only the 'author' name above.
+        userId: user.uid, 
+        
         votes: 1,
         comments: 0,
         mediaUrl: mediaUrl,
@@ -109,7 +109,6 @@ export default function CreatePost() {
               <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Posting As</span>
               <div className="flex items-center gap-2">
                 <span className="text-xl font-black text-gray-800">u/{useRandomName ? randomName : (user ? user.email.split('@')[0] : '...')}</span>
-                {/* Removed Shuffle button here to prevent accidental changing. Change name in Profile instead. */}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -120,6 +119,11 @@ export default function CreatePost() {
               </label>
             </div>
           </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {useRandomName 
+             ? "You will post as this random name. Only YOU can see that you created it (so you can delete it later)." 
+             : "Your real username will be visible to everyone."}
+          </p>
         </div>
 
         {/* Community & Title */}
