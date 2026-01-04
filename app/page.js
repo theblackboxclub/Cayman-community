@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link'; // Import Link for navigation
 import { db, auth } from '../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -19,7 +20,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // 1. CHECK LOGIN STATUS
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -27,7 +27,6 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // 2. LISTEN TO DATABASE
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -42,21 +41,19 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // 3. TOGGLE LIKE
-  const handleLike = async (post) => {
+  const handleLike = async (post, e) => {
+    e.preventDefault(); // Stop the click from opening the post
     if (!currentUser) return alert("Please sign in to like posts!");
 
     const postRef = doc(db, "posts", post.id);
     const isLiked = post.likedBy?.includes(currentUser.uid);
 
     if (isLiked) {
-      // UNLIKE: Remove ID and subtract 1
       await updateDoc(postRef, {
         votes: increment(-1),
         likedBy: arrayRemove(currentUser.uid)
       });
     } else {
-      // LIKE: Add ID and add 1
       await updateDoc(postRef, {
         votes: increment(1),
         likedBy: arrayUnion(currentUser.uid)
@@ -105,71 +102,68 @@ export default function Home() {
         )}
 
         {posts.map((post) => {
-          // Check if user liked THIS post
           const isLiked = post.likedBy?.includes(currentUser?.uid);
 
           return (
-            <div key={post.id} className="bg-white mb-2 md:rounded-md border-b md:border border-gray-200">
-              
-              {/* Post Header */}
-              <div className="px-4 pt-3 flex items-center text-xs text-gray-500 mb-2">
-                <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold mr-2 text-sm">
-                  {post.community ? post.community.charAt(2) : "G"}
-                </div>
-                <div className="flex flex-col">
-                  <div className="flex items-center">
-                    <span className="font-bold text-gray-900 mr-1">{post.community}</span>
-                    <span className="text-gray-400">• {post.time}</span>
-                  </div>
-                  <div className="text-gray-500">u/{post.author}</div>
-                </div>
-              </div>
-
-              {/* Post Content */}
-              <div className="px-4 pb-2">
-                <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2">{post.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
-              </div>
-
-              {/* ACTION BAR */}
-              <div className="px-4 py-3 flex items-center gap-6 border-t border-gray-50 text-gray-500">
+            <Link href={`/post/${post.id}`} key={post.id}>
+              <div className="bg-white mb-2 md:rounded-md border-b md:border border-gray-200 cursor-pointer hover:bg-gray-50 transition">
                 
-                {/* LIKE BUTTON - VISUAL LOGIC FIXED */}
-                <button 
-                  onClick={() => handleLike(post)}
-                  className="flex items-center gap-2 group focus:outline-none"
-                >
-                  {isLiked ? (
-                    // 1. IF LIKED: Filled Red Heart
-                    <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-                  ) : (
-                    // 2. IF NOT LIKED: Gray Outline Heart (Red on Hover only)
-                    <svg className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                  )}
+                {/* Post Header */}
+                <div className="px-4 pt-3 flex items-center text-xs text-gray-500 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold mr-2 text-sm">
+                    {post.community ? post.community.charAt(2) : "G"}
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center">
+                      <span className="font-bold text-gray-900 mr-1">{post.community}</span>
+                      <span className="text-gray-400">• {post.time}</span>
+                    </div>
+                    <div className="text-gray-500">u/{post.author}</div>
+                  </div>
+                </div>
+
+                {/* Post Content */}
+                <div className="px-4 pb-2">
+                  <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2">{post.title}</h3>
+                  <p className="text-sm text-gray-500 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
+                </div>
+
+                {/* ACTION BAR */}
+                <div className="px-4 py-3 flex items-center gap-6 border-t border-gray-50 text-gray-500">
                   
-                  <span className={`text-sm font-bold ${isLiked ? "text-red-500" : "text-gray-500 group-hover:text-red-500"}`}>
-                    {post.votes || 0}
-                  </span>
-                </button>
+                  {/* LIKE BUTTON */}
+                  <button 
+                    onClick={(e) => handleLike(post, e)}
+                    className="flex items-center gap-2 group focus:outline-none"
+                  >
+                    {isLiked ? (
+                      <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                    )}
+                    <span className={`text-sm font-bold ${isLiked ? "text-red-500" : "text-gray-500 group-hover:text-red-500"}`}>
+                      {post.votes || 0}
+                    </span>
+                  </button>
 
-                {/* Comment Button */}
-                <button className="flex items-center gap-2 hover:text-blue-500 transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                  <span className="text-sm font-bold">{post.comments || 0}</span>
-                </button>
+                  {/* Comment Button */}
+                  <div className="flex items-center gap-2 hover:text-blue-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                    <span className="text-sm font-bold">{post.comments || 0}</span>
+                  </div>
 
-                {/* Share Button */}
-                <button className="flex items-center gap-2 hover:text-green-500 transition-colors ml-auto">
-                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                </button>
+                  {/* Share Button */}
+                  <div className="flex items-center gap-2 hover:text-green-500 transition-colors ml-auto">
+                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                  </div>
+                </div>
               </div>
-
-            </div>
+            </Link>
           );
         })}
-      </div>
-
-      {/* --- BOTTOM NAV --- */}
+        {/* Nav Bar Logic Remains Below (omitted for brevity, assume it's same as before) */}
+        
+        {/* --- BOTTOM NAV (Keep this part exactly as it was) --- */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex justify-between items-center z-50">
         <div className="flex flex-col items-center">
           <svg className="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
@@ -194,6 +188,7 @@ export default function Home() {
            <span className="text-[10px] mt-1">Inbox</span>
         </div>
       </div>
+      {/* End of Return */}
     </div>
   );
 }
