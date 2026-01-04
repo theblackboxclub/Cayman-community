@@ -11,18 +11,11 @@ export default function Home() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
-  
-  // FILTER STATE
   const [selectedCommunity, setSelectedCommunity] = useState('All');
 
   const communities = [
-    "All",
-    "c/General",
-    "c/CaymanFitness",
-    "c/IslandJobs",
-    "c/AskLocals",
-    "c/Events",
-    "c/RealEstate"
+    "All", "c/General", "c/CaymanFitness", "c/IslandJobs",
+    "c/AskLocals", "c/Events", "c/RealEstate"
   ];
 
   // 1. CHECK LOGIN
@@ -81,7 +74,6 @@ export default function Home() {
     return `${diffInDays}d`;
   };
 
-  // --- FILTER LOGIC ---
   const filteredPosts = selectedCommunity === 'All' 
     ? posts 
     : posts.filter(post => post.community === selectedCommunity);
@@ -92,16 +84,26 @@ export default function Home() {
       {/* --- TOP NAV --- */}
       <div className="bg-white px-4 py-2 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="font-bold text-lg tracking-tight">CaymanCircle 🌴</div>
+        
         <div className="flex-1 mx-3 bg-gray-100 rounded-full px-4 py-2 flex items-center">
           <svg className="w-5 h-5 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <input type="text" placeholder="Search" className="bg-transparent outline-none text-sm w-full placeholder-gray-500" />
         </div>
+
+        {/* --- PROFILE LINK (FIXED) --- */}
         <Link href="/profile">
-  <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-sm cursor-pointer hover:opacity-80 transition"></div>
-</Link>
+          <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-sm cursor-pointer hover:opacity-80 transition">
+             {/* Optional: Add user initial if loaded */}
+             {currentUser && (
+               <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold">
+                 {currentUser.email.charAt(0).toUpperCase()}
+               </div>
+             )}
+          </div>
+        </Link>
+      </div>
 
-
-      {/* --- FILTER BAR (NEW) --- */}
+      {/* --- FILTER BAR --- */}
       <div className="bg-white pt-2 pb-2 px-4 border-b border-gray-200 sticky top-[56px] z-40 overflow-x-auto">
         <div className="flex gap-2 whitespace-nowrap">
           {communities.map((c) => (
@@ -162,7 +164,7 @@ export default function Home() {
                   <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2">{post.title}</h3>
                   <p className="text-sm text-gray-500 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
                   
-                  {/* Media Preview (If Any) */}
+                  {/* Media Preview */}
                   {post.mediaType === 'image' && post.mediaUrl && (
                     <div className="mb-3 rounded-lg overflow-hidden border border-gray-100 bg-gray-50 h-48 flex items-center justify-center relative">
                       <img src={post.mediaUrl} alt="Preview" className="w-full h-full object-cover" />
