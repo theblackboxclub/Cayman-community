@@ -1,13 +1,33 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase'; 
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, increment } from 'firebase/firestore';
+import { db, auth } from '../firebase'; // Import Auth to know WHO is liking
+import { onAuthStateChanged } from 'firebase/auth';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  doc, 
+  updateDoc, 
+  increment, 
+  arrayUnion, 
+  arrayRemove 
+} from 'firebase/firestore';
 
 export default function Home() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  // 1. LISTEN TO DATABASE
+  // 1. CHECK LOGIN STATUS
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. LISTEN TO DATABASE
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -22,15 +42,28 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // 2. HANDLE LIKE CLICK
-  const handleLike = async (postId) => {
-    // Determine the reference to the specific post
-    const postRef = doc(db, "posts", postId);
+  // 3. SMART LIKE HANDLER
+  const handleLike = async (post) => {
+    if (!currentUser) return alert("Please sign in to like posts!");
+
+    const postRef = doc(db, "posts", post.id);
     
-    // Update the 'votes' field by +1 in the database
-    await updateDoc(postRef, {
-      votes: increment(1)
-    });
+    // Check if the current user has already liked this specific post
+    const isLiked = post.likedBy?.includes(currentUser.uid);
+
+    if (isLiked) {
+      // IF ALREADY LIKED -> UNLIKE IT
+      await updateDoc(postRef, {
+        votes: increment(-1),
+        likedBy: arrayRemove(currentUser.uid) // Remove ID from list
+      });
+    } else {
+      // IF NOT LIKED -> LIKE IT
+      await updateDoc(postRef, {
+        votes: increment(1),
+        likedBy: arrayUnion(currentUser.uid) // Add ID to list
+      });
+    }
   };
 
   const formatTime = (date) => {
@@ -73,56 +106,66 @@ export default function Home() {
            </div>
         )}
 
-        {posts.map((post) => (
-          <div key={post.id} className="bg-white mb-2 md:rounded-md border-b md:border border-gray-200">
-            
-            {/* Post Header */}
-            <div className="px-4 pt-3 flex items-center text-xs text-gray-500 mb-2">
-              <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold mr-2 text-sm">
-                {post.community ? post.community.charAt(2) : "G"}
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center">
-                  <span className="font-bold text-gray-900 mr-1">{post.community}</span>
-                  <span className="text-gray-400">• {post.time}</span>
-                </div>
-                <div className="text-gray-500">u/{post.author}</div>
-              </div>
-            </div>
+        {posts.map((post) => {
+          // Check if user liked THIS post to decide the heart color
+          const isLiked = post.likedBy?.includes(currentUser?.uid);
 
-            {/* Post Content */}
-            <div className="px-4 pb-2">
-              <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2">{post.title}</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
-            </div>
-
-            {/* ACTION BAR (Now with Working Likes) */}
-            <div className="px-4 py-3 flex items-center gap-6 border-t border-gray-50 text-gray-500">
+          return (
+            <div key={post.id} className="bg-white mb-2 md:rounded-md border-b md:border border-gray-200">
               
-              {/* Like Button (Heart) */}
-              <button 
-                onClick={() => handleLike(post.id)}
-                className="flex items-center gap-2 hover:text-red-500 transition-colors group"
-              >
-                <svg className="w-5 h-5 group-hover:fill-red-500 group-active:scale-125 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                {/* DISPLAY THE LIKE COUNT HERE */}
-                <span className="text-sm font-bold">{post.votes || 0}</span>
-              </button>
+              {/* Post Header */}
+              <div className="px-4 pt-3 flex items-center text-xs text-gray-500 mb-2">
+                <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold mr-2 text-sm">
+                  {post.community ? post.community.charAt(2) : "G"}
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center">
+                    <span className="font-bold text-gray-900 mr-1">{post.community}</span>
+                    <span className="text-gray-400">• {post.time}</span>
+                  </div>
+                  <div className="text-gray-500">u/{post.author}</div>
+                </div>
+              </div>
 
-              {/* Comment Button */}
-              <button className="flex items-center gap-2 hover:text-blue-500 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                <span className="text-sm font-bold">{post.comments || 0}</span>
-              </button>
+              {/* Post Content */}
+              <div className="px-4 pb-2">
+                <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2">{post.title}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
+              </div>
 
-              {/* Share Button */}
-              <button className="flex items-center gap-2 hover:text-green-500 transition-colors ml-auto">
-                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-              </button>
+              {/* ACTION BAR */}
+              <div className="px-4 py-3 flex items-center gap-6 border-t border-gray-50 text-gray-500">
+                
+                {/* Like Button */}
+                <button 
+                  onClick={() => handleLike(post)}
+                  className={`flex items-center gap-2 transition-colors group ${isLiked ? "text-red-500" : "hover:text-red-500"}`}
+                >
+                  {/* Conditional Heart: Filled if liked, Outline if not */}
+                  {isLiked ? (
+                    <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                  ) : (
+                    <svg className="w-5 h-5 group-hover:fill-red-500 group-active:scale-125 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                  )}
+                  
+                  <span className="text-sm font-bold">{post.votes || 0}</span>
+                </button>
+
+                {/* Comment Button */}
+                <button className="flex items-center gap-2 hover:text-blue-500 transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  <span className="text-sm font-bold">{post.comments || 0}</span>
+                </button>
+
+                {/* Share Button */}
+                <button className="flex items-center gap-2 hover:text-green-500 transition-colors ml-auto">
+                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                </button>
+              </div>
+
             </div>
-
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* --- BOTTOM NAV --- */}
