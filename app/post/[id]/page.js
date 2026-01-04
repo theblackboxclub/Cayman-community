@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { db, auth } from '../../../firebase';
 import { 
-  doc, getDoc, collection, addDoc, 
+  doc, getDoc, collection, addDoc, deleteDoc,
   query, where, onSnapshot, 
   serverTimestamp, setDoc, updateDoc, increment,
   arrayUnion, arrayRemove
@@ -14,22 +14,26 @@ export default function PostDetails({ params }) {
   const router = useRouter();
   const { id } = params; 
   const [post, setPost] = useState(null);
-  const [comments, setComments] = useState([]); // All comments flat list
+  const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
-  const [replyTo, setReplyTo] = useState(null); // ID of comment we are replying to
+  const [replyTo, setReplyTo] = useState(null); 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // Media State for Comments
+  // Media State
   const [commentMediaUrl, setCommentMediaUrl] = useState('');
-  const [commentMediaType, setCommentMediaType] = useState('none'); // 'none', 'image', 'link'
+  const [commentMediaType, setCommentMediaType] = useState('none'); 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); });
     
     // Fetch Post
     const unsubPost = onSnapshot(doc(db, "posts", id), (doc) => {
-      if (doc.exists()) setPost({ id: doc.id, ...doc.data() });
+      if (doc.exists()) {
+        setPost({ id: doc.id, ...doc.data() });
+      } else {
+        setPost(null); // Post deleted or doesn't exist
+      }
       setLoading(false);
     });
 
@@ -37,12 +41,28 @@ export default function PostDetails({ params }) {
     const q = query(collection(db, "comments"), where("postId", "==", id));
     const unsubComments = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Sort by date (Oldest first usually better for nested discussions)
       setComments(data.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)));
     });
 
     return () => { unsubscribe(); unsubPost(); unsubComments(); };
   }, [id]);
+
+  // --- DELETE LOGIC ---
+  const handleDeletePost = async () => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this post? This cannot be undone.");
+    if (confirmDelete) {
+      await deleteDoc(doc(db, "posts", id));
+      router.push('/'); // Send back home
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    const confirmDelete = window.confirm("Delete this comment?");
+    if (confirmDelete) {
+      await deleteDoc(doc(db, "comments", commentId));
+      await updateDoc(doc(db, "posts", id), { comments: increment(-1) });
+    }
+  };
 
   const getUniqueUsername = async (uid) => {
     const userRef = doc(db, "users", uid);
@@ -69,7 +89,7 @@ export default function PostDetails({ params }) {
   };
 
   const handleSendComment = async (parentId = null) => {
-    const text = parentId ? newComment : newComment; // Can use separate states if needed, simple for now
+    const text = parentId ? newComment : newComment; 
     if (!text.trim() && commentMediaType === 'none') return;
     if (!user) return alert("Please sign in.");
 
@@ -77,7 +97,7 @@ export default function PostDetails({ params }) {
       const username = await getUniqueUsername(user.uid);
       await addDoc(collection(db, "comments"), {
         postId: id,
-        parentId: parentId, // THIS IS KEY FOR NESTING
+        parentId: parentId, 
         text: text,
         author: username, 
         userId: user.uid,
@@ -90,7 +110,6 @@ export default function PostDetails({ params }) {
 
       await updateDoc(doc(db, "posts", id), { comments: increment(1) });
       
-      // Reset Inputs
       setNewComment('');
       setReplyTo(null);
       setCommentMediaUrl('');
@@ -102,12 +121,12 @@ export default function PostDetails({ params }) {
   };
 
   if (loading) return <div className="p-10 text-center text-gray-500">Loading...</div>;
-  if (!post) return <div className="p-10 text-center">Post not found.</div>;
+  if (!post) return <div className="p-10 text-center">Post not found (it may have been deleted).</div>;
 
-  // Render a Single Comment (and recursively render its replies)
+  // Render Comment Item
   const CommentItem = ({ comment, depth = 0 }) => {
     const isLiked = comment.likedBy?.includes(user?.uid);
-    // Find children
+    const isMyComment = user && comment.userId === user.uid; // CHECK OWNERSHIP
     const replies = comments.filter(c => c.parentId === comment.id);
 
     return (
@@ -120,12 +139,17 @@ export default function PostDetails({ params }) {
              <div className="flex items-center gap-2 mb-1">
                <span className="font-bold text-xs text-gray-900">u/{comment.author}</span>
                <span className="text-[10px] text-gray-400"> • {depth === 0 ? 'Comment' : 'Reply'}</span>
+               
+               {/* DELETE BUTTON FOR COMMENT */}
+               {isMyComment && (
+                 <button onClick={() => handleDeleteComment(comment.id)} className="text-gray-400 hover:text-red-500" title="Delete">
+                   🗑️
+                 </button>
+               )}
              </div>
              
-             {/* COMMENT TEXT */}
              <p className="text-sm text-gray-800 mb-2">{comment.text}</p>
              
-             {/* COMMENT MEDIA */}
              {comment.mediaType === 'image' && comment.mediaUrl && (
                 <img src={comment.mediaUrl} alt="Comment Media" className="w-full max-w-xs rounded-lg mb-2 border border-gray-100" />
              )}
@@ -135,7 +159,6 @@ export default function PostDetails({ params }) {
                 </a>
              )}
 
-             {/* ACTIONS (Like, Reply) */}
              <div className="flex items-center gap-4 text-xs text-gray-500 font-bold">
                <button onClick={() => handleLike(comment, "comments")} className={`flex items-center gap-1 ${isLiked ? "text-red-500" : "hover:text-red-500"}`}>
                  {isLiked ? "❤️" : "♡"} {comment.votes || 0}
@@ -145,7 +168,6 @@ export default function PostDetails({ params }) {
                </button>
              </div>
 
-             {/* REPLY INPUT (Only shows if 'Reply' clicked) */}
              {replyTo === comment.id && (
                <div className="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
                   <input autoFocus type="text" placeholder={`Reply to u/${comment.author}...`} className="w-full bg-white border border-gray-200 rounded p-2 text-sm mb-2 outline-none"
@@ -159,8 +181,6 @@ export default function PostDetails({ params }) {
              )}
            </div>
         </div>
-
-        {/* RECURSIVE RENDER: Show replies below */}
         <div className="mt-2">
           {replies.map(reply => <CommentItem key={reply.id} comment={reply} depth={depth + 1} />)}
         </div>
@@ -168,12 +188,23 @@ export default function PostDetails({ params }) {
     );
   };
 
+  const isMyPost = user && post.userId === user.uid; // CHECK OWNERSHIP OF MAIN POST
+
   return (
     <div className="min-h-screen bg-[#DAE0E6] pb-24">
       {/* Top Nav */}
-      <div className="bg-white px-4 py-3 flex items-center shadow-sm sticky top-0 z-50">
-        <button onClick={() => router.back()} className="mr-4 text-gray-600">⬅</button>
-        <span className="font-bold text-lg">Discussion</span>
+      <div className="bg-white px-4 py-3 flex items-center shadow-sm sticky top-0 z-50 justify-between">
+        <div className="flex items-center">
+          <button onClick={() => router.back()} className="mr-4 text-gray-600">⬅</button>
+          <span className="font-bold text-lg">Discussion</span>
+        </div>
+        
+        {/* DELETE BUTTON FOR MAIN POST (Top Right) */}
+        {isMyPost && (
+           <button onClick={handleDeletePost} className="text-gray-400 hover:text-red-600 transition p-2">
+             🗑️
+           </button>
+        )}
       </div>
 
       <div className="max-w-md mx-auto md:max-w-2xl mt-2">
@@ -186,7 +217,6 @@ export default function PostDetails({ params }) {
            <h1 className="text-xl font-bold mb-2">{post.title}</h1>
            <p className="text-gray-800 leading-relaxed mb-4">{post.body}</p>
 
-           {/* POST MEDIA */}
            {post.mediaType === 'image' && post.mediaUrl && (
               <img src={post.mediaUrl} alt="Post Media" className="w-full rounded-xl mb-4 border border-gray-100" />
            )}
@@ -214,10 +244,9 @@ export default function PostDetails({ params }) {
         </div>
       </div>
 
-      {/* MAIN COMMENT BAR (For top-level comments) */}
+      {/* MAIN COMMENT BAR */}
       {!replyTo && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-50">
-          {/* Media Input Toggle (Tiny) */}
           {commentMediaType !== 'none' && (
              <input type="text" placeholder={commentMediaType === 'image' ? "Image Link..." : "Website Link..."} 
                 className="w-full text-xs bg-gray-50 p-2 mb-2 rounded border border-gray-200"
