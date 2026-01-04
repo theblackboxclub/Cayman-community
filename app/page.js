@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link'; // Import Link for navigation
+import Link from 'next/link'; 
 import { db, auth } from '../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -20,6 +20,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // 1. CHECK LOGIN
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -27,6 +28,7 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  // 2. FETCH POSTS
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -41,8 +43,9 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  // 3. HANDLE LIKE
   const handleLike = async (post, e) => {
-    e.preventDefault(); // Stop the click from opening the post
+    e.preventDefault(); // Prevent opening the post when clicking the heart
     if (!currentUser) return alert("Please sign in to like posts!");
 
     const postRef = doc(db, "posts", post.id);
@@ -161,9 +164,10 @@ export default function Home() {
             </Link>
           );
         })}
-        {/* Nav Bar Logic Remains Below (omitted for brevity, assume it's same as before) */}
-        
-        {/* --- BOTTOM NAV (Keep this part exactly as it was) --- */}
+
+      </div>
+
+      {/* --- BOTTOM NAV --- */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex justify-between items-center z-50">
         <div className="flex flex-col items-center">
           <svg className="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
@@ -188,7 +192,6 @@ export default function Home() {
            <span className="text-[10px] mt-1">Inbox</span>
         </div>
       </div>
-      {/* End of Return */}
     </div>
   );
 }
