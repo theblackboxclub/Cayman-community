@@ -14,150 +14,170 @@ export default function PostDetails({ params }) {
   const router = useRouter();
   const { id } = params; 
   const [post, setPost] = useState(null);
-  const [comments, setComments] = useState([]);
+  const [comments, setComments] = useState([]); // All comments flat list
   const [newComment, setNewComment] = useState('');
+  const [replyTo, setReplyTo] = useState(null); // ID of comment we are replying to
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Media State for Comments
+  const [commentMediaUrl, setCommentMediaUrl] = useState('');
+  const [commentMediaType, setCommentMediaType] = useState('none'); // 'none', 'image', 'link'
 
-  // 1. Load User & Post Data
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-
-    // Fetch Post Details
-    const postRef = doc(db, "posts", id);
-    const unsubPost = onSnapshot(postRef, (doc) => {
-      if (doc.exists()) {
-        setPost({ id: doc.id, ...doc.data() });
-      } else {
-        setPost(null);
-      }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); });
+    
+    // Fetch Post
+    const unsubPost = onSnapshot(doc(db, "posts", id), (doc) => {
+      if (doc.exists()) setPost({ id: doc.id, ...doc.data() });
       setLoading(false);
     });
 
     // Fetch Comments
     const q = query(collection(db, "comments"), where("postId", "==", id));
     const unsubComments = onSnapshot(q, (snapshot) => {
-      const commentsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Sort locally
-      const sortedComments = commentsData.sort((a, b) => {
-        return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
-      });
-      setComments(sortedComments);
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Sort by date (Oldest first usually better for nested discussions)
+      setComments(data.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)));
     });
 
     return () => { unsubscribe(); unsubPost(); unsubComments(); };
   }, [id]);
 
-
-  // 2. NAME GENERATOR
   const getUniqueUsername = async (uid) => {
     const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
+    if (userSnap.exists() && userSnap.data().username) return userSnap.data().username;
 
-    if (userSnap.exists() && userSnap.data().username) {
-      return userSnap.data().username;
-    }
-
-    const adjectives = ["Salty", "Breezy", "Grand", "Little", "Coral", "Sunny", "Happy", "Lazy"];
-    const nouns = ["Iguana", "Stingray", "Turtle", "Rooster", "Shark", "Marlin", "Crab"];
+    const adjectives = ["Salty", "Breezy", "Grand", "Little", "Coral", "Sunny"];
+    const nouns = ["Iguana", "Stingray", "Turtle", "Rooster", "Shark"];
     const randomNum = Math.floor(Math.random() * 9999);
     const finalName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${randomNum}`;
-
+    
     await setDoc(userRef, { username: finalName }, { merge: true });
     return finalName;
   };
 
-  // --- LIKE LOGIC FOR MAIN POST ---
-  const handlePostLike = async () => {
+  const handleLike = async (item, collectionName) => {
     if (!user) return alert("Please sign in!");
-    const postRef = doc(db, "posts", id);
-    const isLiked = post.likedBy?.includes(user.uid);
-
-    if (isLiked) {
-      await updateDoc(postRef, {
-        votes: increment(-1),
-        likedBy: arrayRemove(user.uid)
-      });
-    } else {
-      await updateDoc(postRef, {
-        votes: increment(1),
-        likedBy: arrayUnion(user.uid)
-      });
-    }
+    const ref = doc(db, collectionName, item.id);
+    const isLiked = item.likedBy?.includes(user.uid);
+    await updateDoc(ref, {
+      votes: increment(isLiked ? -1 : 1),
+      likedBy: isLiked ? arrayRemove(user.uid) : arrayUnion(user.uid)
+    });
   };
 
-  // --- LIKE LOGIC FOR COMMENTS ---
-  const handleCommentLike = async (comment) => {
-    if (!user) return alert("Please sign in!");
-    const commentRef = doc(db, "comments", comment.id);
-    const isLiked = comment.likedBy?.includes(user.uid);
-
-    if (isLiked) {
-      await updateDoc(commentRef, {
-        votes: increment(-1),
-        likedBy: arrayRemove(user.uid)
-      });
-    } else {
-      await updateDoc(commentRef, {
-        votes: increment(1),
-        likedBy: arrayUnion(user.uid)
-      });
-    }
-  };
-
-
-  // 3. HANDLE COMMENT SUBMIT
-  const handleComment = async () => {
-    if (!newComment.trim()) return;
-    if (!user) return alert("Please sign in to comment.");
+  const handleSendComment = async (parentId = null) => {
+    const text = parentId ? newComment : newComment; // Can use separate states if needed, simple for now
+    if (!text.trim() && commentMediaType === 'none') return;
+    if (!user) return alert("Please sign in.");
 
     try {
       const username = await getUniqueUsername(user.uid);
-
       await addDoc(collection(db, "comments"), {
         postId: id,
-        text: newComment,
+        parentId: parentId, // THIS IS KEY FOR NESTING
+        text: text,
         author: username, 
         userId: user.uid,
-        votes: 0, // Init votes
-        likedBy: [], // Init like array
+        votes: 0,
+        likedBy: [],
+        mediaUrl: commentMediaUrl,
+        mediaType: commentMediaType,
         createdAt: serverTimestamp()
       });
 
-      const postRef = doc(db, "posts", id);
-      await updateDoc(postRef, {
-        comments: increment(1)
-      });
-
+      await updateDoc(doc(db, "posts", id), { comments: increment(1) });
+      
+      // Reset Inputs
       setNewComment('');
+      setReplyTo(null);
+      setCommentMediaUrl('');
+      setCommentMediaType('none');
     } catch (error) {
-      console.error("Error commenting:", error);
-      alert("Failed to post comment.");
+      console.error(error);
+      alert("Error posting comment.");
     }
   };
 
-  if (loading) return <div className="p-10 text-center font-bold text-gray-500">Loading Discussion... 🌴</div>;
+  if (loading) return <div className="p-10 text-center text-gray-500">Loading...</div>;
   if (!post) return <div className="p-10 text-center">Post not found.</div>;
 
-  // Check if main post is liked by current user
-  const isPostLiked = post.likedBy?.includes(user?.uid);
+  // Render a Single Comment (and recursively render its replies)
+  const CommentItem = ({ comment, depth = 0 }) => {
+    const isLiked = comment.likedBy?.includes(user?.uid);
+    // Find children
+    const replies = comments.filter(c => c.parentId === comment.id);
+
+    return (
+      <div className={`border-l-2 ${depth > 0 ? 'ml-4 border-gray-200' : 'border-transparent'} pl-2 mb-4`}>
+        <div className="flex gap-2">
+           <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold flex items-center justify-center">
+             {comment.author.charAt(0)}
+           </div>
+           <div className="flex-1">
+             <div className="flex items-center gap-2 mb-1">
+               <span className="font-bold text-xs text-gray-900">u/{comment.author}</span>
+               <span className="text-[10px] text-gray-400"> • {depth === 0 ? 'Comment' : 'Reply'}</span>
+             </div>
+             
+             {/* COMMENT TEXT */}
+             <p className="text-sm text-gray-800 mb-2">{comment.text}</p>
+             
+             {/* COMMENT MEDIA */}
+             {comment.mediaType === 'image' && comment.mediaUrl && (
+                <img src={comment.mediaUrl} alt="Comment Media" className="w-full max-w-xs rounded-lg mb-2 border border-gray-100" />
+             )}
+             {comment.mediaType === 'link' && comment.mediaUrl && (
+                <a href={comment.mediaUrl} target="_blank" className="text-blue-500 text-xs underline block mb-2 break-all">
+                  📎 {comment.mediaUrl}
+                </a>
+             )}
+
+             {/* ACTIONS (Like, Reply) */}
+             <div className="flex items-center gap-4 text-xs text-gray-500 font-bold">
+               <button onClick={() => handleLike(comment, "comments")} className={`flex items-center gap-1 ${isLiked ? "text-red-500" : "hover:text-red-500"}`}>
+                 {isLiked ? "❤️" : "♡"} {comment.votes || 0}
+               </button>
+               <button onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)} className="hover:text-blue-500">
+                 Reply
+               </button>
+             </div>
+
+             {/* REPLY INPUT (Only shows if 'Reply' clicked) */}
+             {replyTo === comment.id && (
+               <div className="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <input autoFocus type="text" placeholder={`Reply to u/${comment.author}...`} className="w-full bg-white border border-gray-200 rounded p-2 text-sm mb-2 outline-none"
+                    value={newComment} onChange={(e) => setNewComment(e.target.value)}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setReplyTo(null)} className="text-xs font-bold text-gray-400">Cancel</button>
+                    <button onClick={() => handleSendComment(comment.id)} className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-full font-bold">Reply</button>
+                  </div>
+               </div>
+             )}
+           </div>
+        </div>
+
+        {/* RECURSIVE RENDER: Show replies below */}
+        <div className="mt-2">
+          {replies.map(reply => <CommentItem key={reply.id} comment={reply} depth={depth + 1} />)}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-[#DAE0E6] pb-20">
-      
-      {/* Top Bar */}
+    <div className="min-h-screen bg-[#DAE0E6] pb-24">
+      {/* Top Nav */}
       <div className="bg-white px-4 py-3 flex items-center shadow-sm sticky top-0 z-50">
-        <button onClick={() => router.back()} className="mr-4 text-gray-600">
-           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-        </button>
+        <button onClick={() => router.back()} className="mr-4 text-gray-600">⬅</button>
         <span className="font-bold text-lg">Discussion</span>
       </div>
 
       <div className="max-w-md mx-auto md:max-w-2xl mt-2">
-        
-        {/* ORIGINAL POST */}
+        {/* MAIN POST CARD */}
         <div className="bg-white p-4 border-b border-gray-200">
            <div className="text-xs text-gray-500 mb-2 flex items-center">
               <span className="font-bold text-black mr-2">{post.community}</span> 
@@ -165,92 +185,53 @@ export default function PostDetails({ params }) {
            </div>
            <h1 className="text-xl font-bold mb-2">{post.title}</h1>
            <p className="text-gray-800 leading-relaxed mb-4">{post.body}</p>
+
+           {/* POST MEDIA */}
+           {post.mediaType === 'image' && post.mediaUrl && (
+              <img src={post.mediaUrl} alt="Post Media" className="w-full rounded-xl mb-4 border border-gray-100" />
+           )}
+           {post.mediaType === 'link' && post.mediaUrl && (
+              <div className="bg-gray-50 p-3 rounded-lg mb-4 border border-gray-200 flex items-center gap-2">
+                <span className="text-xl">🔗</span>
+                <a href={post.mediaUrl} target="_blank" className="text-blue-600 font-bold underline truncate">{post.mediaUrl}</a>
+              </div>
+           )}
            
            <div className="flex items-center text-gray-500 text-sm gap-6 border-t pt-3">
-              {/* MAIN POST LIKE BUTTON */}
-              <button 
-                onClick={handlePostLike}
-                className={`flex items-center gap-2 font-bold ${isPostLiked ? "text-red-500" : "text-gray-500 hover:text-red-500"}`}
-              >
-                {isPostLiked ? (
-                  <svg className="w-6 h-6 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-                ) : (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                )}
-                {post.votes || 0}
+              <button onClick={() => handleLike(post, "posts")} className={`flex items-center gap-2 font-bold ${post.likedBy?.includes(user?.uid) ? "text-red-500" : ""}`}>
+                 ❤️ {post.votes || 0}
               </button>
-
-              <span className="flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                {comments.length} Comments
-              </span>
+              <span>💬 {comments.length} Comments</span>
            </div>
         </div>
 
-        {/* COMMENTS SECTION */}
-        <div className="bg-white min-h-[50vh] pb-20">
-          {comments.map((comment) => {
-            const isCommentLiked = comment.likedBy?.includes(user?.uid);
-            
-            return (
-              <div key={comment.id} className="p-4 border-b border-gray-100 flex gap-3">
-                {/* Avatar Bubble */}
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-xs font-bold flex items-center justify-center">
-                  {comment.author ? comment.author.charAt(0) : "?"}
-                </div>
-                
-                {/* Comment Body */}
-                <div className="flex-1">
-                  <div className="flex items-baseline mb-1">
-                    <span className="font-bold text-sm text-gray-900 mr-2">u/{comment.author}</span>
-                  </div>
-                  <p className="text-gray-800 text-sm leading-snug mb-2">{comment.text}</p>
-                  
-                  {/* COMMENT LIKE BUTTON */}
-                  <button 
-                    onClick={() => handleCommentLike(comment)}
-                    className={`flex items-center gap-1 text-xs font-bold ${isCommentLiked ? "text-red-500" : "text-gray-400 hover:text-red-500"}`}
-                  >
-                     {isCommentLiked ? (
-                        <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                      )}
-                    {comment.votes || 0}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-          
-          {comments.length === 0 && (
-            <div className="p-10 text-center text-gray-400">
-              <div className="text-2xl mb-2">💬</div>
-              No comments yet.<br/>Be the first to reply!
-            </div>
-          )}
+        {/* COMMENT TREE */}
+        <div className="bg-white min-h-[50vh] p-4">
+          {comments.filter(c => !c.parentId).map((comment) => (
+             <CommentItem key={comment.id} comment={comment} />
+          ))}
+          {comments.length === 0 && <div className="text-center text-gray-400 py-10">No comments yet.</div>}
         </div>
-
       </div>
 
-      {/* COMMENT INPUT BAR */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2 z-50">
-        <input 
-          type="text" 
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Add a comment..." 
-          className="flex-1 bg-gray-100 rounded-full px-4 py-3 outline-none text-sm"
-        />
-        <button 
-          onClick={handleComment}
-          disabled={!newComment}
-          className="bg-blue-600 text-white font-bold px-4 py-2 rounded-full text-sm disabled:opacity-50"
-        >
-          Send
-        </button>
-      </div>
+      {/* MAIN COMMENT BAR (For top-level comments) */}
+      {!replyTo && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-50">
+          {/* Media Input Toggle (Tiny) */}
+          {commentMediaType !== 'none' && (
+             <input type="text" placeholder={commentMediaType === 'image' ? "Image Link..." : "Website Link..."} 
+                className="w-full text-xs bg-gray-50 p-2 mb-2 rounded border border-gray-200"
+                value={commentMediaUrl} onChange={(e) => setCommentMediaUrl(e.target.value)}
+             />
+          )}
 
+          <div className="flex items-center gap-2">
+            <button onClick={() => setCommentMediaType(commentMediaType === 'image' ? 'none' : 'image')} className={`p-2 rounded-full ${commentMediaType === 'image' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>📷</button>
+            <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-gray-100 rounded-full px-4 py-3 outline-none text-sm" />
+            <button onClick={() => handleSendComment(null)} disabled={!newComment && !commentMediaUrl} className="bg-blue-600 text-white font-bold px-4 py-2 rounded-full text-sm disabled:opacity-50">Send</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
