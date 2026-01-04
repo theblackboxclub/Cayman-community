@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '../../firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, getDocs, doc, getDoc, updateDoc, orderBy 
+  collection, query, where, getDocs, doc, getDoc, updateDoc 
 } from 'firebase/firestore';
 import Link from 'next/link';
 
@@ -16,7 +16,6 @@ export default function Profile() {
   const [stats, setStats] = useState({ postCount: 0, totalLikes: 0 });
   const [loading, setLoading] = useState(true);
 
-  // 1. Check Login & Fetch Data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
@@ -25,32 +24,44 @@ export default function Profile() {
       }
       setUser(currentUser);
 
-      // A. Get Username
-      const userRef = doc(db, "users", currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists() && userSnap.data().username) {
-        setUsername(userSnap.data().username);
-      } else {
-        setUsername(currentUser.email.split('@')[0]);
+      try {
+        // A. Get Username
+        const userRef = doc(db, "users", currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists() && userSnap.data().username) {
+          setUsername(userSnap.data().username);
+        } else {
+          setUsername(currentUser.email.split('@')[0]);
+        }
+
+        // B. Get My Posts (FIXED: Removed 'orderBy' to avoid Index Error)
+        const q = query(collection(db, "posts"), where("userId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        const postsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Sort in Javascript (Newest First)
+        postsData.sort((a, b) => {
+           return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+        });
+
+        setMyPosts(postsData);
+
+        // C. Calculate Stats
+        const totalLikes = postsData.reduce((acc, curr) => acc + (curr.votes || 0), 0);
+        setStats({ postCount: postsData.length, totalLikes });
+
+      } catch (error) {
+        console.error("Error loading profile:", error);
+      } finally {
+        // Ensure loading stops even if there is an error
+        setLoading(false);
       }
-
-      // B. Get My Posts
-      const q = query(collection(db, "posts"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      
-      const postsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMyPosts(postsData);
-
-      // C. Calculate Stats
-      const totalLikes = postsData.reduce((acc, curr) => acc + (curr.votes || 0), 0);
-      setStats({ postCount: postsData.length, totalLikes });
-      
-      setLoading(false);
     });
     return () => unsubscribe();
   }, [router]);
 
-  // 2. Shuffle Username (Re-Roll Identity)
+  // Shuffle Username
   const handleShuffleName = async () => {
     if (!user) return;
     const confirm = window.confirm("Are you sure? This will change your name for ALL future posts.");
@@ -61,22 +72,23 @@ export default function Profile() {
     const randomNum = Math.floor(Math.random() * 9999);
     const newName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${randomNum}`;
 
-    // Update Database
     const userRef = doc(db, "users", user.uid);
     await updateDoc(userRef, { username: newName });
     
-    // Update Local State
     setUsername(newName);
     alert(`You are now u/${newName}!`);
   };
 
-  // 3. Logout
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/signup');
   };
 
-  if (loading) return <div className="p-10 text-center text-gray-500">Loading Profile...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-gray-500 font-bold animate-pulse">Loading Profile...</div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -92,16 +104,13 @@ export default function Profile() {
 
       {/* Profile Card */}
       <div className="bg-white p-6 mb-4 flex flex-col items-center border-b border-gray-200">
-        {/* Avatar */}
         <div className="w-20 h-20 bg-green-500 rounded-full border-4 border-white shadow-lg mb-3 flex items-center justify-center text-3xl text-white font-bold">
           {username.charAt(0)}
         </div>
         
-        {/* Username */}
         <h1 className="text-2xl font-black text-gray-900">u/{username}</h1>
         <p className="text-gray-400 text-sm mb-4">{user?.email}</p>
 
-        {/* Stats Grid */}
         <div className="flex gap-8 mb-6">
           <div className="text-center">
             <span className="block text-xl font-bold text-black">{stats.postCount}</span>
@@ -113,7 +122,6 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Action Button */}
         <button 
           onClick={handleShuffleName}
           className="bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-gray-200 transition"
@@ -128,13 +136,13 @@ export default function Profile() {
         
         {myPosts.length === 0 && (
           <div className="text-center py-10 text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
-            You haven't posted anything yet.
+            You haven't posted anything publicly yet.
           </div>
         )}
 
         {myPosts.map((post) => (
           <Link href={`/post/${post.id}`} key={post.id}>
-            <div className="bg-white p-4 mb-2 rounded-lg border border-gray-200 shadow-sm">
+            <div className="bg-white p-4 mb-2 rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:bg-gray-50">
               <div className="text-xs text-gray-400 mb-1">{post.community}</div>
               <h3 className="font-bold text-md mb-1">{post.title}</h3>
               <div className="flex items-center gap-4 text-xs text-gray-500">
