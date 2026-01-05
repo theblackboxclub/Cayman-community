@@ -11,7 +11,10 @@ export default function Home() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  
+  // FILTERS
   const [selectedCommunity, setSelectedCommunity] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const communities = [
     "All", "c/General", "c/CaymanFitness", "c/IslandJobs",
@@ -74,20 +77,40 @@ export default function Home() {
     return `${diffInDays}d`;
   };
 
-  const filteredPosts = selectedCommunity === 'All' 
-    ? posts 
-    : posts.filter(post => post.community === selectedCommunity);
+  // 4. FILTERING LOGIC (Community + Search)
+  const filteredPosts = posts.filter(post => {
+    // Check Community
+    const matchesCommunity = selectedCommunity === 'All' || post.community === selectedCommunity;
+    
+    // Check Search (Title or Body)
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = post.title.toLowerCase().includes(searchLower) || 
+                          post.body.toLowerCase().includes(searchLower);
+
+    return matchesCommunity && matchesSearch;
+  });
 
   return (
     <div className="min-h-screen bg-[#DAE0E6] pb-24"> 
 
       {/* --- TOP NAV --- */}
       <div className="bg-white px-4 py-2 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-        <div className="font-bold text-lg tracking-tight">CaymanCircle 🌴</div>
+        <div className="font-bold text-lg tracking-tight hidden md:block">CaymanCircle 🌴</div>
+        <div className="font-bold text-lg tracking-tight md:hidden">CC 🌴</div>
         
-        <div className="flex-1 mx-3 bg-gray-100 rounded-full px-4 py-2 flex items-center">
+        {/* SEARCH BAR */}
+        <div className="flex-1 mx-3 bg-gray-100 rounded-full px-4 py-2 flex items-center group focus-within:bg-white focus-within:ring-1 focus-within:ring-black transition">
           <svg className="w-5 h-5 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <input type="text" placeholder="Search" className="bg-transparent outline-none text-sm w-full placeholder-gray-500" />
+          <input 
+            type="text" 
+            placeholder="Search Cayman..." 
+            className="bg-transparent outline-none text-sm w-full placeholder-gray-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="text-gray-400 hover:text-black">✕</button>
+          )}
         </div>
 
         {/* --- PROFILE LINK --- */}
@@ -124,9 +147,11 @@ export default function Home() {
 
         {!loading && filteredPosts.length === 0 && (
            <div className="p-10 text-center text-gray-500">
-             <div className="text-4xl mb-2">🦗</div>
-             <div className="font-bold">No posts in {selectedCommunity}</div>
-             <p className="text-sm mt-2">Be the first to create one!</p>
+             <div className="text-4xl mb-2">🔎</div>
+             <div className="font-bold">No results found</div>
+             <p className="text-sm mt-2">
+               {searchQuery ? `We couldn't find "${searchQuery}"` : `No posts in ${selectedCommunity} yet.`}
+             </p>
              <Link href="/create">
                 <button className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-full font-bold text-sm">Create Post</button>
              </Link>
@@ -199,7 +224,7 @@ export default function Home() {
           <span className={`text-[10px] font-bold mt-1 ${selectedCommunity === 'All' ? 'text-black' : 'text-gray-400'}`}>Home</span>
         </div>
         
-        {/* COMMUNITIES BUTTON (Just visual for now, or scrolls top) */}
+        {/* COMMUNITIES BUTTON */}
         <div className="flex flex-col items-center text-gray-400 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth'})}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg>
           <span className="text-[10px] mt-1">Communities</span>
@@ -219,8 +244,8 @@ export default function Home() {
            <span className="text-[10px] mt-1">Chat</span>
         </div>
         
-        {/* INBOX BUTTON (FIXED) */}
-        <Link href="/inbox" className="flex flex-col items-center text-gray-400 hover:text-black transition">
+        {/* INBOX BUTTON (Now points to /messages) */}
+        <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
         </Link>
