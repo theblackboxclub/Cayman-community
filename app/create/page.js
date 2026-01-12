@@ -1,22 +1,19 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { db, auth, storage } from '../../firebase'; // Importing storage from root firebase.js
+import { db, auth, storage } from '../../firebase'; // <--- UP TWO LEVELS
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Firebase Storage functions
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; 
 
 export default function CreatePost() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [community, setCommunity] = useState('c/General');
-  
-  // Media States
   const [mediaType, setMediaType] = useState('none'); 
   const [mediaUrl, setMediaUrl] = useState('');     
   const [imageFile, setImageFile] = useState(null); 
-  
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [randomName, setRandomName] = useState('Loading...'); 
@@ -33,7 +30,6 @@ export default function CreatePost() {
         router.push('/signup');
       } else {
         setUser(currentUser);
-        // Fetch existing name
         const userRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userRef);
@@ -53,25 +49,17 @@ export default function CreatePost() {
   const handlePost = async () => {
     if (!title) return alert("Please enter a title!");
     setLoading(true);
-
     const authorName = useRandomName ? randomName : user.email.split('@')[0];
     let finalMediaUrl = mediaUrl; 
 
     try {
-      // 1. IF IMAGE FILE SELECTED -> UPLOAD TO FIREBASE STORAGE
       if (mediaType === 'image' && imageFile) {
-        // Create a unique file path
         const uniqueFileName = `posts/${Date.now()}-${imageFile.name}`;
         const storageRef = ref(storage, uniqueFileName);
-        
-        // Upload
         const snapshot = await uploadBytes(storageRef, imageFile);
-        
-        // Get URL
         finalMediaUrl = await getDownloadURL(snapshot.ref);
       }
 
-      // 2. SAVE POST TO FIRESTORE
       await addDoc(collection(db, "posts"), {
         title: title,
         body: body,
@@ -84,7 +72,6 @@ export default function CreatePost() {
         mediaType: mediaType, 
         createdAt: serverTimestamp()
       });
-
       router.push('/'); 
     } catch (error) {
       console.error("Error adding post: ", error);
@@ -96,7 +83,6 @@ export default function CreatePost() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Top Nav */}
       <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100 sticky top-0 bg-white z-10">
         <button onClick={() => router.back()} className="text-gray-500 font-bold text-sm">Cancel</button>
         <h1 className="font-bold text-lg">Create Post</h1>
@@ -106,7 +92,6 @@ export default function CreatePost() {
       </div>
 
       <div className="p-4 flex flex-col gap-4 max-w-2xl mx-auto">
-        {/* Identity Card */}
         <div className={`flex flex-col gap-3 p-4 rounded-xl border transition-all ${useRandomName ? "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100" : "bg-gray-50 border-gray-200"}`}>
           <div className="flex justify-between items-start">
             <div>
@@ -125,18 +110,14 @@ export default function CreatePost() {
           </div>
         </div>
 
-        {/* Community & Title */}
         <div className="relative">
           <select value={community} onChange={(e) => setCommunity(e.target.value)} className="appearance-none w-full bg-white border border-gray-300 text-gray-900 py-3 px-4 rounded font-bold">
             {communities.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <input type="text" placeholder="An interesting title" className="text-2xl font-bold placeholder-gray-300 outline-none w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
-        
-        {/* Body */}
         <textarea placeholder="What's happening?" className="w-full h-32 text-lg placeholder-gray-300 outline-none resize-none" value={body} onChange={(e) => setBody(e.target.value)} />
 
-        {/* Media Inputs */}
         <div className="border-t border-gray-100 pt-4">
           <div className="flex gap-4 mb-2">
             <button onClick={() => setMediaType('image')} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'image' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>📷 Upload Image</button>
@@ -144,7 +125,6 @@ export default function CreatePost() {
             <button onClick={() => {setMediaType('none'); setMediaUrl(''); setImageFile(null);}} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'none' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>No Media</button>
           </div>
 
-          {/* UPLOAD INPUT */}
           {mediaType === 'image' && (
             <div className="bg-gray-50 p-4 rounded-lg border border-dashed border-gray-300 text-center">
               <input 
@@ -157,7 +137,6 @@ export default function CreatePost() {
             </div>
           )}
 
-          {/* LINK INPUT */}
           {mediaType === 'link' && (
             <input 
               type="text" 
@@ -168,7 +147,6 @@ export default function CreatePost() {
             />
           )}
         </div>
-
       </div>
     </div>
   );
