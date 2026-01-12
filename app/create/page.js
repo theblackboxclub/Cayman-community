@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { db, auth } from '../../firebase'; 
+import { db, auth, storage } from '../../firebase'; // Importing storage from root firebase.js
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Firebase Storage functions
 
 export default function CreatePost() {
   const router = useRouter();
@@ -21,24 +22,10 @@ export default function CreatePost() {
   const [randomName, setRandomName] = useState('Loading...'); 
   const [useRandomName, setUseRandomName] = useState(true);
 
-  // --- 🛠️ CLOUDINARY CONFIG ---
-  const CLOUD_NAME = "dt2lajmvo";        // Your Cloud Name
-  const UPLOAD_PRESET = "cayman_preset"; // The name you typed in the box
-  // -----------------------------
-
   const communities = [
     "c/General", "c/CaymanFitness", "c/IslandJobs", 
     "c/AskLocals", "c/Events", "c/RealEstate"
   ];
-
-  const generateCaymanName = () => {
-    const adjectives = ["Salty", "Breezy", "Grand", "Little", "Coral", "Sunny", "Hidden", "Ironshore"];
-    const nouns = ["Iguana", "Stingray", "Turtle", "Rooster", "Conch", "Pirate", "Diver", "Snapper"];
-    const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
-    const randomNumber = Math.floor(Math.random() * 99) + 1;
-    return `${randomAdj}${randomNoun}${randomNumber}`;
-  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -46,41 +33,22 @@ export default function CreatePost() {
         router.push('/signup');
       } else {
         setUser(currentUser);
+        // Fetch existing name
         const userRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userRef);
           if (snap.exists() && snap.data().username) {
             setRandomName(snap.data().username);
           } else {
-            setRandomName(generateCaymanName());
+             setRandomName(`CaymanUser${Math.floor(Math.random()*1000)}`);
           }
         } catch (error) {
           console.error("Error fetching name:", error);
-          setRandomName(generateCaymanName());
         }
       }
     });
     return () => unsubscribe();
   }, [router]);
-
-  // --- NEW UPLOAD FUNCTION ---
-  const uploadToCloudinary = async (file) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", UPLOAD_PRESET); 
-
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-      method: "POST",
-      body: formData
-    });
-
-    const data = await response.json();
-    if (data.secure_url) {
-      return data.secure_url;
-    } else {
-      throw new Error("Failed to upload image");
-    }
-  };
 
   const handlePost = async () => {
     if (!title) return alert("Please enter a title!");
@@ -90,19 +58,20 @@ export default function CreatePost() {
     let finalMediaUrl = mediaUrl; 
 
     try {
-      // 1. UPLOAD IMAGE IF SELECTED
+      // 1. IF IMAGE FILE SELECTED -> UPLOAD TO FIREBASE STORAGE
       if (mediaType === 'image' && imageFile) {
-        try {
-           finalMediaUrl = await uploadToCloudinary(imageFile);
-        } catch (uploadError) {
-           console.error("Upload failed", uploadError);
-           alert("Image upload failed. Please check your internet or Cloudinary settings.");
-           setLoading(false);
-           return;
-        }
+        // Create a unique file path
+        const uniqueFileName = `posts/${Date.now()}-${imageFile.name}`;
+        const storageRef = ref(storage, uniqueFileName);
+        
+        // Upload
+        const snapshot = await uploadBytes(storageRef, imageFile);
+        
+        // Get URL
+        finalMediaUrl = await getDownloadURL(snapshot.ref);
       }
 
-      // 2. SAVE POST
+      // 2. SAVE POST TO FIRESTORE
       await addDoc(collection(db, "posts"), {
         title: title,
         body: body,
@@ -119,7 +88,7 @@ export default function CreatePost() {
       router.push('/'); 
     } catch (error) {
       console.error("Error adding post: ", error);
-      alert("Error posting.");
+      alert("Error posting. Check console.");
     } finally {
       setLoading(false);
     }
