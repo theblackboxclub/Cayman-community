@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link'; 
-import { db, auth } from '../firebase'; 
+import { db, auth } from '../firebase'; // Correct import from root
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
   collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove 
@@ -113,8 +113,8 @@ export default function Home() {
           )}
         </div>
 
-        {/* --- PROFILE LINK --- */}
-        <Link href="/profile">
+        {/* --- PROFILE LINK (Redirects to /signup if not logged in) --- */}
+        <Link href={currentUser ? "/profile" : "/signup"}>
           <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-sm cursor-pointer hover:opacity-80 transition flex items-center justify-center text-white text-xs font-bold">
              {currentUser ? currentUser.email.charAt(0).toUpperCase() : "?"}
           </div>
@@ -190,6 +190,13 @@ export default function Home() {
                       <img src={post.mediaUrl} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                   )}
+                  {/* Link Preview */}
+                   {post.mediaType === 'link' && post.mediaUrl && (
+                    <div className="mb-3 p-3 rounded-lg border border-blue-100 bg-blue-50 flex items-center gap-3">
+                      <div className="bg-blue-200 p-2 rounded-full">🔗</div>
+                      <span className="text-blue-700 text-sm font-bold truncate">{post.mediaUrl}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* ACTION BAR */}
@@ -238,13 +245,13 @@ export default function Home() {
           <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
         </Link>
         
-        {/* CHAT BUTTON (Placeholder) */}
+        {/* CHAT BUTTON */}
         <div className="flex flex-col items-center text-gray-400 cursor-not-allowed opacity-50">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
            <span className="text-[10px] mt-1">Chat</span>
         </div>
         
-        {/* INBOX BUTTON (Now points to /messages) */}
+        {/* INBOX BUTTON (Points to /messages) */}
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
