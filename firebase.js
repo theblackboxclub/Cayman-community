@@ -8,8 +8,8 @@ const firebaseConfig = {
   authDomain: "cayman-community.firebaseapp.com",
   projectId: "cayman-community",
   storageBucket: "cayman-community.firebasestorage.app",
-  messagingSenderId: "367138686968", // Standard inference based on project
-  appId: "1:367138686968:web:7f6d3283282a0888913959" // Placeholder (Safe to leave as is for Storage)
+  messagingSenderId: "367138686968",
+  appId: "1:367138686968:web:7f6d3283282a0888913959"
 };
 
 // Initialize Firebase
