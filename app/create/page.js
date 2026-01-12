@@ -19,7 +19,7 @@ export default function CreatePost() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
   
-  // This is the FIXED username state
+  // Stores the persistent username
   const [username, setUsername] = useState('Loading...'); 
 
   const communities = [
@@ -33,14 +33,14 @@ export default function CreatePost() {
         router.push('/signup');
       } else {
         setUser(currentUser);
-        // FETCH THE PERMANENT USERNAME
+        // Fetch the permanent username
         const userRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userRef);
           if (snap.exists() && snap.data().username) {
             setUsername(snap.data().username);
           } else {
-             // Fallback if they signed up before this update
+             // Fallback for older accounts
              setUsername(currentUser.email.split('@')[0]);
           }
         } catch (error) {
@@ -69,9 +69,10 @@ export default function CreatePost() {
         title: title,
         body: body,
         community: community,
-        author: username, // Uses the stored unique username
+        author: username, 
         userId: user.uid, 
-        votes: 1,
+        votes: 0, // <--- CHANGED FROM 1 TO 0
+        likedBy: [], // Ensure no one has liked it yet
         comments: 0,
         mediaUrl: finalMediaUrl, 
         mediaType: mediaType, 
