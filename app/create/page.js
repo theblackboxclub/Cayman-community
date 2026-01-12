@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { db, auth } from '../../firebase';
+import { db, auth } from '../../firebase'; 
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -10,13 +10,21 @@ export default function CreatePost() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [community, setCommunity] = useState('c/General');
-  const [mediaUrl, setMediaUrl] = useState(''); 
-  const [mediaType, setMediaType] = useState('none'); 
-  const [loading, setLoading] = useState(false);
   
+  // Media States
+  const [mediaType, setMediaType] = useState('none'); 
+  const [mediaUrl, setMediaUrl] = useState('');     
+  const [imageFile, setImageFile] = useState(null); 
+  
+  const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [randomName, setRandomName] = useState('Loading...'); 
   const [useRandomName, setUseRandomName] = useState(true);
+
+  // --- 🛠️ CLOUDINARY CONFIG ---
+  const CLOUD_NAME = "dt2lajmvo";        // Your Cloud Name
+  const UPLOAD_PRESET = "cayman_preset"; // The name you typed in the box
+  // -----------------------------
 
   const communities = [
     "c/General", "c/CaymanFitness", "c/IslandJobs", 
@@ -38,7 +46,6 @@ export default function CreatePost() {
         router.push('/signup');
       } else {
         setUser(currentUser);
-        
         const userRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userRef);
@@ -56,27 +63,55 @@ export default function CreatePost() {
     return () => unsubscribe();
   }, [router]);
 
+  // --- NEW UPLOAD FUNCTION ---
+  const uploadToCloudinary = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", UPLOAD_PRESET); 
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await response.json();
+    if (data.secure_url) {
+      return data.secure_url;
+    } else {
+      throw new Error("Failed to upload image");
+    }
+  };
+
   const handlePost = async () => {
     if (!title) return alert("Please enter a title!");
     setLoading(true);
 
-    // VISUAL IDENTITY: This is what the public sees
     const authorName = useRandomName ? randomName : user.email.split('@')[0];
+    let finalMediaUrl = mediaUrl; 
 
     try {
+      // 1. UPLOAD IMAGE IF SELECTED
+      if (mediaType === 'image' && imageFile) {
+        try {
+           finalMediaUrl = await uploadToCloudinary(imageFile);
+        } catch (uploadError) {
+           console.error("Upload failed", uploadError);
+           alert("Image upload failed. Please check your internet or Cloudinary settings.");
+           setLoading(false);
+           return;
+        }
+      }
+
+      // 2. SAVE POST
       await addDoc(collection(db, "posts"), {
         title: title,
         body: body,
         community: community,
         author: authorName,
-        
-        // OWNERSHIP ID: We ALWAYS save the real ID now, so you can delete it later.
-        // The public never sees this ID, only the 'author' name above.
         userId: user.uid, 
-        
         votes: 1,
         comments: 0,
-        mediaUrl: mediaUrl,
+        mediaUrl: finalMediaUrl, 
         mediaType: mediaType, 
         createdAt: serverTimestamp()
       });
@@ -119,11 +154,6 @@ export default function CreatePost() {
               </label>
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            {useRandomName 
-             ? "You will post as this random name. Only YOU can see that you created it (so you can delete it later)." 
-             : "Your real username will be visible to everyone."}
-          </p>
         </div>
 
         {/* Community & Title */}
@@ -140,14 +170,29 @@ export default function CreatePost() {
         {/* Media Inputs */}
         <div className="border-t border-gray-100 pt-4">
           <div className="flex gap-4 mb-2">
-            <button onClick={() => setMediaType('image')} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'image' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>📷 Add Image</button>
+            <button onClick={() => setMediaType('image')} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'image' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>📷 Upload Image</button>
             <button onClick={() => setMediaType('link')} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'link' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>🔗 Add Link</button>
-            <button onClick={() => {setMediaType('none'); setMediaUrl('')}} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'none' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>No Media</button>
+            <button onClick={() => {setMediaType('none'); setMediaUrl(''); setImageFile(null);}} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'none' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>No Media</button>
           </div>
-          {mediaType !== 'none' && (
+
+          {/* UPLOAD INPUT */}
+          {mediaType === 'image' && (
+            <div className="bg-gray-50 p-4 rounded-lg border border-dashed border-gray-300 text-center">
+              <input 
+                type="file" 
+                accept="image/*"
+                onChange={(e) => setImageFile(e.target.files[0])}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-black file:text-white hover:file:bg-gray-800 cursor-pointer"
+              />
+              {imageFile && <p className="text-xs text-green-600 mt-2 font-bold">Selected: {imageFile.name}</p>}
+            </div>
+          )}
+
+          {/* LINK INPUT */}
+          {mediaType === 'link' && (
             <input 
               type="text" 
-              placeholder={mediaType === 'image' ? "Paste Image URL (e.g. https://...jpg)" : "Paste Website Link (e.g. https://google.com)"}
+              placeholder="Paste Website Link (e.g. https://google.com)"
               className="w-full bg-gray-50 border border-gray-200 rounded p-2 text-sm"
               value={mediaUrl}
               onChange={(e) => setMediaUrl(e.target.value)}
