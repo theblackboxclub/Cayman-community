@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { db, auth } from '../../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  doc, onSnapshot, collection, addDoc, query, orderBy, serverTimestamp, updateDoc, increment, arrayUnion, arrayRemove 
+  doc, getDoc, onSnapshot, collection, addDoc, query, orderBy, serverTimestamp, updateDoc, increment, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 
 export default function PostDetail({ params }) {
@@ -16,10 +16,29 @@ export default function PostDetail({ params }) {
   const [newComment, setNewComment] = useState('');
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // NEW: State to store the real database username
+  const [dbUsername, setDbUsername] = useState(null);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
+      // NEW: Fetch the real username from the "users" collection
+      if (currentUser) {
+        try {
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists() && userDocSnap.data().username) {
+            setDbUsername(userDocSnap.data().username);
+          } else {
+            // Fallback if no username found (shouldn't happen with new accounts)
+            setDbUsername(currentUser.email.split('@')[0]);
+          }
+        } catch (error) {
+          console.error("Error fetching username:", error);
+        }
+      }
     });
 
     // Fetch Post
@@ -31,7 +50,7 @@ export default function PostDetail({ params }) {
       }
     });
 
-    // Fetch Comments (Sorted by Oldest First for conversation flow)
+    // Fetch Comments
     const q = query(collection(db, "posts", id, "comments"), orderBy("createdAt", "asc"));
     const unsubComments = onSnapshot(q, (snapshot) => {
       setComments(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -49,10 +68,13 @@ export default function PostDetail({ params }) {
     if (!newComment.trim()) return;
     if (!user) return router.push('/signup');
 
+    // CRITICAL FIX: Use the fetched dbUsername, NOT the email
+    const authorName = dbUsername || "Anonymous";
+
     try {
       await addDoc(collection(db, "posts", id, "comments"), {
         text: newComment,
-        author: user.email.split('@')[0], 
+        author: authorName, // <--- This now uses the correct name
         userId: user.uid,
         createdAt: serverTimestamp()
       });
@@ -172,10 +194,14 @@ export default function PostDetail({ params }) {
       {/* Comment Input */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-20">
         <div className="max-w-2xl mx-auto flex gap-2 items-center">
+          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 flex-shrink-0">
+             {/* Show the user's initial or ? if not loaded yet */}
+             {dbUsername ? dbUsername.charAt(0).toUpperCase() : (user ? user.email.charAt(0).toUpperCase() : '?')}
+          </div>
           <input 
             type="text" 
             className="flex-1 bg-gray-100 border-none rounded-full px-4 py-2.5 text-sm focus:ring-1 focus:ring-black outline-none placeholder-gray-500"
-            placeholder="Add a comment..."
+            placeholder={dbUsername ? `Comment as ${dbUsername}...` : "Add a comment..."}
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
