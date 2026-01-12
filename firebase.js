@@ -1,23 +1,21 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage"; // Import Storage
+import { getStorage } from "firebase/storage"; 
 
-// Your web app's Firebase configuration
-// (Use your actual config keys here if they are different)
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_AUTH_DOMAIN_HERE",
-  projectId: "YOUR_PROJECT_ID_HERE",
-  storageBucket: "YOUR_STORAGE_BUCKET_HERE",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAcEwrrQhdrANiJPkDzikqC-3t0wXXE9S0",
+  authDomain: "cayman-community.firebaseapp.com",
+  projectId: "cayman-community",
+  storageBucket: "cayman-community.firebasestorage.app",
+  messagingSenderId: "367138686968", // Standard inference based on project
+  appId: "1:367138686968:web:7f6d3283282a0888913959" // Placeholder (Safe to leave as is for Storage)
 };
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
-const storage = getStorage(app); // Initialize Storage
+const storage = getStorage(app); 
 
 export { db, auth, storage };
