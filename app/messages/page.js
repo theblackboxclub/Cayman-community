@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch 
+  collection, query, where, onSnapshot, doc, updateDoc, writeBatch 
 } from 'firebase/firestore';
 
 export default function Inbox() {
@@ -21,11 +21,10 @@ export default function Inbox() {
       }
       setUser(currentUser);
 
-      // Fetch Notifications for THIS user only
+      // FIX: Removed 'orderBy' to prevent Index Errors
       const q = query(
         collection(db, "notifications"),
-        where("toUserId", "==", currentUser.uid),
-        orderBy("createdAt", "desc")
+        where("toUserId", "==", currentUser.uid)
       );
 
       const unsubNotes = onSnapshot(q, (snapshot) => {
@@ -33,6 +32,14 @@ export default function Inbox() {
           id: doc.id,
           ...doc.data()
         }));
+        
+        // Sort explicitly in Javascript (Newest First)
+        notes.sort((a, b) => {
+           const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+           const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+           return timeB - timeA;
+        });
+
         setNotifications(notes);
         setLoading(false);
       });
@@ -44,12 +51,10 @@ export default function Inbox() {
   }, [router]);
 
   const handleClick = async (note) => {
-    // 1. Mark as read
     if (!note.read) {
       const noteRef = doc(db, "notifications", note.id);
       await updateDoc(noteRef, { read: true });
     }
-    // 2. Go to the post
     if (note.postId) {
       router.push(`/post/${note.postId}`);
     }
@@ -68,7 +73,6 @@ export default function Inbox() {
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
-    // Show "Today" or date
     const date = timestamp.toDate();
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
