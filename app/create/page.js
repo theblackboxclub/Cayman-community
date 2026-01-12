@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { db, auth, storage } from '../../firebase'; // <--- UP TWO LEVELS
+import { db, auth, storage } from '../../firebase'; 
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; 
@@ -11,13 +11,16 @@ export default function CreatePost() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [community, setCommunity] = useState('c/General');
+  
   const [mediaType, setMediaType] = useState('none'); 
   const [mediaUrl, setMediaUrl] = useState('');     
   const [imageFile, setImageFile] = useState(null); 
+  
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
-  const [randomName, setRandomName] = useState('Loading...'); 
-  const [useRandomName, setUseRandomName] = useState(true);
+  
+  // This is the FIXED username state
+  const [username, setUsername] = useState('Loading...'); 
 
   const communities = [
     "c/General", "c/CaymanFitness", "c/IslandJobs", 
@@ -30,13 +33,15 @@ export default function CreatePost() {
         router.push('/signup');
       } else {
         setUser(currentUser);
+        // FETCH THE PERMANENT USERNAME
         const userRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userRef);
           if (snap.exists() && snap.data().username) {
-            setRandomName(snap.data().username);
+            setUsername(snap.data().username);
           } else {
-             setRandomName(`CaymanUser${Math.floor(Math.random()*1000)}`);
+             // Fallback if they signed up before this update
+             setUsername(currentUser.email.split('@')[0]);
           }
         } catch (error) {
           console.error("Error fetching name:", error);
@@ -49,7 +54,7 @@ export default function CreatePost() {
   const handlePost = async () => {
     if (!title) return alert("Please enter a title!");
     setLoading(true);
-    const authorName = useRandomName ? randomName : user.email.split('@')[0];
+
     let finalMediaUrl = mediaUrl; 
 
     try {
@@ -64,7 +69,7 @@ export default function CreatePost() {
         title: title,
         body: body,
         community: community,
-        author: authorName,
+        author: username, // Uses the stored unique username
         userId: user.uid, 
         votes: 1,
         comments: 0,
@@ -72,10 +77,11 @@ export default function CreatePost() {
         mediaType: mediaType, 
         createdAt: serverTimestamp()
       });
+
       router.push('/'); 
     } catch (error) {
       console.error("Error adding post: ", error);
-      alert("Error posting. Check console.");
+      alert("Error posting.");
     } finally {
       setLoading(false);
     }
@@ -86,26 +92,22 @@ export default function CreatePost() {
       <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100 sticky top-0 bg-white z-10">
         <button onClick={() => router.back()} className="text-gray-500 font-bold text-sm">Cancel</button>
         <h1 className="font-bold text-lg">Create Post</h1>
-        <button onClick={handlePost} disabled={loading} className={`bg-blue-600 text-white px-4 py-1.5 rounded-full font-bold text-sm ${loading ? "opacity-50" : ""}`}>
+        <button onClick={handlePost} disabled={loading} className={`bg-black text-white px-4 py-1.5 rounded-full font-bold text-sm ${loading ? "opacity-50" : ""}`}>
           {loading ? "Posting..." : "Post"}
         </button>
       </div>
 
       <div className="p-4 flex flex-col gap-4 max-w-2xl mx-auto">
-        <div className={`flex flex-col gap-3 p-4 rounded-xl border transition-all ${useRandomName ? "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100" : "bg-gray-50 border-gray-200"}`}>
-          <div className="flex justify-between items-start">
+        
+        {/* Identity Card */}
+        <div className="flex flex-col gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50">
+          <div className="flex justify-between items-center">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Posting As</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-black text-gray-800">u/{useRandomName ? randomName : (user ? user.email.split('@')[0] : '...')}</span>
-              </div>
+              <span className="text-xl font-black text-gray-900">u/{username}</span>
             </div>
-            <div className="flex items-center gap-2">
-               <span className="text-xs text-gray-400 font-bold">{useRandomName ? "Incognito" : "Public"}</span>
-               <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={useRandomName} onChange={(e) => setUseRandomName(e.target.checked)} className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
+            <div className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-500">
+               Public Identity
             </div>
           </div>
         </div>
@@ -120,8 +122,8 @@ export default function CreatePost() {
 
         <div className="border-t border-gray-100 pt-4">
           <div className="flex gap-4 mb-2">
-            <button onClick={() => setMediaType('image')} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'image' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>📷 Upload Image</button>
-            <button onClick={() => setMediaType('link')} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'link' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>🔗 Add Link</button>
+            <button onClick={() => setMediaType('image')} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'image' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>Upload Image</button>
+            <button onClick={() => setMediaType('link')} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'link' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>Add Link</button>
             <button onClick={() => {setMediaType('none'); setMediaUrl(''); setImageFile(null);}} className={`text-sm font-bold px-3 py-1 rounded-full ${mediaType === 'none' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>No Media</button>
           </div>
 
