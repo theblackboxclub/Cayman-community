@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth, db } from '../firebase'; 
+import { auth, db } from '../../firebase'; // <--- FIXED: Goes up 2 levels
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { 
   doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc 
@@ -22,7 +22,7 @@ export default function Profile() {
       }
       setUser(currentUser);
 
-      // 1. Fetch User Profile (Username + Stats)
+      // 1. Fetch User Profile
       try {
         const docRef = doc(db, "users", currentUser.uid);
         const docSnap = await getDoc(docRef);
@@ -66,7 +66,6 @@ export default function Profile() {
     const confirmChange = window.confirm("Generate a new random username?");
     if (!confirmChange) return;
 
-    // Generate new name
     const adjectives = ["Salty", "Breezy", "Grand", "Little", "Coral", "Sunny", "Hidden", "Ironshore"];
     const nouns = ["Iguana", "Stingray", "Turtle", "Rooster", "Conch", "Pirate", "Diver", "Snapper"];
     const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
@@ -74,17 +73,14 @@ export default function Profile() {
     const randomNumber = Math.floor(Math.random() * 999) + 1;
     const newName = `${randomAdj}${randomNoun}${randomNumber}`;
 
-    // Update in DB
     const userRef = doc(db, "users", user.uid);
     await updateDoc(userRef, { username: newName });
     
-    // Update local state
     setUserData(prev => ({ ...prev, username: newName }));
   };
 
   if (loading) return <div className="p-10 text-center text-gray-500 text-sm">Loading Profile...</div>;
 
-  // Calculate total likes from all posts
   const totalLikes = userPosts.reduce((acc, post) => acc + (post.votes || 0), 0);
 
   return (
