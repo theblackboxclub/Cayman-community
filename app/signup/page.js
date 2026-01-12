@@ -1,52 +1,69 @@
 "use client";
-import { useState } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../firebase";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import React, { useState } from 'react';
+import { auth } from '../../firebase'; // Imports from the root firebase.js
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 
-export default function Signup() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+export default function AuthPage() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleSignup = async (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault();
+    setError('');
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      router.push("/"); // Redirect to home after signup
+      if (isLogin) {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+      router.push('/'); // Redirect to Home after success
     } catch (err) {
-      setError(err.message);
+      setError(err.message.replace('Firebase:', '').trim());
     }
   };
 
   return (
-    <div style={{ maxWidth: "400px", margin: "40px auto" }}>
-      <h2>Join CaymanCircle 🇰🇾</h2>
-      <form onSubmit={handleSignup} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={{ padding: "10px" }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          style={{ padding: "10px" }}
-        />
-        <button type="submit">Sign Up</button>
-      </form>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <p style={{ marginTop: "20px" }}>
-        Already have an account? <Link href="/login">Login</Link>
-      </p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm text-center">
+        <h1 className="text-2xl font-bold mb-2">{isLogin ? 'Welcome Back' : 'Join CaymanCircle'}</h1>
+        <p className="text-gray-500 mb-6 text-sm">The community is waiting for you.</p>
+
+        {error && <div className="bg-red-50 text-red-500 text-xs p-3 rounded mb-4">{error}</div>}
+
+        <form onSubmit={handleAuth} className="space-y-4">
+          <input 
+            type="email" 
+            placeholder="Email" 
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded outline-none focus:border-black transition"
+            value={email} 
+            onChange={(e) => setEmail(e.target.value)} 
+          />
+          <input 
+            type="password" 
+            placeholder="Password" 
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded outline-none focus:border-black transition"
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+          />
+          <button className="w-full bg-black text-white font-bold py-3 rounded-lg hover:opacity-80 transition">
+            {isLogin ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
+
+        <p className="mt-6 text-xs text-gray-400">
+          {isLogin ? "New to the island? " : "Already have an account? "}
+          <span 
+            onClick={() => setIsLogin(!isLogin)} 
+            className="text-black font-bold cursor-pointer underline"
+          >
+            {isLogin ? 'Sign Up' : 'Log In'}
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
