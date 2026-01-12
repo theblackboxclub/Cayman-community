@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { auth } from '../../firebase'; // Imports from the root firebase.js
+import { auth } from '../../firebase'; // <--- UP TWO LEVELS
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
@@ -20,7 +20,7 @@ export default function AuthPage() {
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
       }
-      router.push('/'); // Redirect to Home after success
+      router.push('/'); 
     } catch (err) {
       setError(err.message.replace('Firebase:', '').trim());
     }
