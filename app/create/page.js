@@ -10,16 +10,18 @@ export default function CreatePost() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [community, setCommunity] = useState('c/General');
   
+  // Community State
+  const [community, setCommunity] = useState('c/General');
+  const [isCustomCommunity, setIsCustomCommunity] = useState(false);
+  const [customCommunityName, setCustomCommunityName] = useState('c/');
+
   const [mediaType, setMediaType] = useState('none'); 
   const [mediaUrl, setMediaUrl] = useState('');     
   const [imageFile, setImageFile] = useState(null); 
   
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
-  
-  // Stores the persistent username
   const [username, setUsername] = useState('Loading...'); 
 
   const communities = [
@@ -33,14 +35,12 @@ export default function CreatePost() {
         router.push('/signup');
       } else {
         setUser(currentUser);
-        // Fetch the permanent username
         const userRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userRef);
           if (snap.exists() && snap.data().username) {
             setUsername(snap.data().username);
           } else {
-             // Fallback for older accounts
              setUsername(currentUser.email.split('@')[0]);
           }
         } catch (error) {
@@ -51,12 +51,34 @@ export default function CreatePost() {
     return () => unsubscribe();
   }, [router]);
 
+  // Handle Community Selection Change
+  const handleCommunityChange = (e) => {
+    const val = e.target.value;
+    if (val === 'create_new') {
+      setIsCustomCommunity(true);
+      setCommunity('c/');
+    } else {
+      setIsCustomCommunity(false);
+      setCommunity(val);
+    }
+  };
+
   const handlePost = async () => {
     if (!title) return alert("Please enter a title!");
+    
+    // Determine final community name
+    let finalCommunity = community;
+    if (isCustomCommunity) {
+      finalCommunity = customCommunityName.trim();
+      if (!finalCommunity.startsWith('c/')) {
+        finalCommunity = 'c/' + finalCommunity;
+      }
+      if (finalCommunity.length < 4) return alert("Please enter a valid community name.");
+    }
+
     setLoading(true);
 
     let finalMediaUrl = mediaUrl; 
-
     try {
       if (mediaType === 'image' && imageFile) {
         const uniqueFileName = `posts/${Date.now()}-${imageFile.name}`;
@@ -68,11 +90,11 @@ export default function CreatePost() {
       await addDoc(collection(db, "posts"), {
         title: title,
         body: body,
-        community: community,
+        community: finalCommunity, // Use the final calculated name
         author: username, 
         userId: user.uid, 
-        votes: 0, // <--- CHANGED FROM 1 TO 0
-        likedBy: [], // Ensure no one has liked it yet
+        votes: 0, 
+        likedBy: [], 
         comments: 0,
         mediaUrl: finalMediaUrl, 
         mediaType: mediaType, 
@@ -113,11 +135,33 @@ export default function CreatePost() {
           </div>
         </div>
 
+        {/* Community Selector */}
         <div className="relative">
-          <select value={community} onChange={(e) => setCommunity(e.target.value)} className="appearance-none w-full bg-white border border-gray-300 text-gray-900 py-3 px-4 rounded font-bold">
-            {communities.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          {!isCustomCommunity ? (
+            <select onChange={handleCommunityChange} className="appearance-none w-full bg-white border border-gray-300 text-gray-900 py-3 px-4 rounded font-bold outline-none">
+              {communities.map((c) => <option key={c} value={c}>{c}</option>)}
+              <option value="create_new">➕ Create New Community...</option>
+            </select>
+          ) : (
+            <div className="flex items-center gap-2">
+               <input 
+                 type="text" 
+                 className="flex-1 bg-white border border-black text-gray-900 py-3 px-4 rounded font-bold outline-none"
+                 value={customCommunityName}
+                 onChange={(e) => setCustomCommunityName(e.target.value)}
+                 placeholder="c/NewCommunityName"
+                 autoFocus
+               />
+               <button 
+                 onClick={() => setIsCustomCommunity(false)}
+                 className="text-xs font-bold text-gray-500 underline"
+               >
+                 Cancel
+               </button>
+            </div>
+          )}
         </div>
+
         <input type="text" placeholder="An interesting title" className="text-2xl font-bold placeholder-gray-300 outline-none w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
         <textarea placeholder="What's happening?" className="w-full h-32 text-lg placeholder-gray-300 outline-none resize-none" value={body} onChange={(e) => setBody(e.target.value)} />
 
