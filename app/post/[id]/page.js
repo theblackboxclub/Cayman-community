@@ -15,8 +15,7 @@ export default function PostDetail({ params }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   
-  // Reply State
-  const [replyingTo, setReplyingTo] = useState(null); // ID of comment being replied to
+  const [replyingTo, setReplyingTo] = useState(null); 
   const [replyText, setReplyText] = useState('');
 
   const [user, setUser] = useState(null);
@@ -49,7 +48,6 @@ export default function PostDetail({ params }) {
       }
     });
 
-    // Fetch ALL comments (root + replies)
     const q = query(collection(db, "posts", id, "comments"), orderBy("createdAt", "asc"));
     const unsubComments = onSnapshot(q, (snapshot) => {
       setComments(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -63,6 +61,28 @@ export default function PostDetail({ params }) {
     };
   }, [id]);
 
+  // --- NOTIFICATION HELPER ---
+  const sendNotification = async (toUserId, type, text, contentType) => {
+    if (!user || !toUserId) return;
+    if (user.uid === toUserId) return; // Don't notify yourself
+
+    try {
+      await addDoc(collection(db, "notifications"), {
+        toUserId: toUserId,       // Who gets it
+        fromUserId: user.uid,     // Who sent it
+        fromUser: dbUsername || "Anonymous",
+        type: type,               // 'like' or 'reply'
+        text: text || "",         // Preview text
+        contentType: contentType, // 'post' or 'comment'
+        postId: id,               // Link to this post
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error sending notification:", error);
+    }
+  };
+
   // --- ACTIONS ---
 
   const handlePostComment = async () => {
@@ -75,19 +95,23 @@ export default function PostDetail({ params }) {
         text: newComment,
         author: authorName,
         userId: user.uid,
-        parentId: null, // Root comment
+        parentId: null,
         votes: 0,
         likedBy: [],
         createdAt: serverTimestamp()
       });
       await updateDoc(doc(db, "posts", id), { comments: increment(1) });
+      
+      // Notify Post Author
+      await sendNotification(post.userId, 'reply', newComment.substring(0, 50), 'post');
+
       setNewComment('');
     } catch (error) {
       console.error("Error commenting:", error);
     }
   };
 
-  const handleReply = async (parentId) => {
+  const handleReply = async (parentComment) => {
     if (!replyText.trim()) return;
     if (!user) return router.push('/signup');
     const authorName = dbUsername || "Anonymous";
@@ -97,12 +121,16 @@ export default function PostDetail({ params }) {
         text: replyText,
         author: authorName,
         userId: user.uid,
-        parentId: parentId, // Links this reply to the parent
+        parentId: parentComment.id, 
         votes: 0,
         likedBy: [],
         createdAt: serverTimestamp()
       });
       await updateDoc(doc(db, "posts", id), { comments: increment(1) });
+      
+      // Notify the person you are replying to
+      await sendNotification(parentComment.userId, 'reply', replyText.substring(0, 50), 'comment');
+
       setReplyingTo(null);
       setReplyText('');
     } catch (error) {
@@ -118,6 +146,8 @@ export default function PostDetail({ params }) {
       await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(user.uid) });
     } else {
       await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(user.uid) });
+      // Notify Post Author
+      await sendNotification(post.userId, 'like', '', 'post');
     }
   };
 
@@ -130,6 +160,8 @@ export default function PostDetail({ params }) {
       await updateDoc(commentRef, { votes: increment(-1), likedBy: arrayRemove(user.uid) });
     } else {
       await updateDoc(commentRef, { votes: increment(1), likedBy: arrayUnion(user.uid) });
+      // Notify Comment Author
+      await sendNotification(comment.userId, 'like', '', 'comment');
     }
   };
 
@@ -138,7 +170,6 @@ export default function PostDetail({ params }) {
     return timestamp.toDate().toLocaleDateString();
   };
 
-  // --- HELPERS FOR THREADING ---
   const rootComments = comments.filter(c => !c.parentId);
   const getReplies = (parentId) => comments.filter(c => c.parentId === parentId);
 
@@ -147,7 +178,6 @@ export default function PostDetail({ params }) {
 
   return (
     <div className="min-h-screen bg-white pb-24">
-      
       {/* Header */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10 px-4 py-3 flex items-center gap-4">
         <button onClick={() => router.back()} className="text-gray-600 hover:text-black">
@@ -184,7 +214,6 @@ export default function PostDetail({ params }) {
              </a>
           )}
 
-          {/* Post Actions */}
           <div className="flex items-center gap-6 pt-2">
             <button onClick={handleLikePost} className={`flex items-center gap-2 px-3 py-1 rounded-full border transition ${post.likedBy?.includes(user?.uid) ? 'border-red-500 text-red-600 bg-red-50' : 'border-gray-200 text-gray-600'}`}>
               <svg className="w-5 h-5" fill={post.likedBy?.includes(user?.uid) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
@@ -205,10 +234,8 @@ export default function PostDetail({ params }) {
             rootComments.map((comment) => {
               const replies = getReplies(comment.id);
               const isLiked = comment.likedBy?.includes(user?.uid);
-              
               return (
                 <div key={comment.id} className="mb-4">
-                  {/* Parent Comment */}
                   <div className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0 mt-1" />
                     <div className="flex-1">
@@ -220,33 +247,21 @@ export default function PostDetail({ params }) {
                         <p className="text-sm text-gray-800">{comment.text}</p>
                       </div>
                       
-                      {/* Comment Actions (Like / Reply) */}
                       <div className="flex items-center gap-4 mt-1 ml-1">
                         <button onClick={() => handleLikeComment(comment)} className={`flex items-center gap-1 text-xs font-bold ${isLiked ? 'text-red-500' : 'text-gray-500 hover:text-black'}`}>
                            <svg className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                            {comment.votes > 0 && <span>{comment.votes}</span>}
                         </button>
-                        <button onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)} className="text-xs font-bold text-gray-500 hover:text-black flex items-center gap-1">
-                           Reply
-                        </button>
+                        <button onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)} className="text-xs font-bold text-gray-500 hover:text-black flex items-center gap-1">Reply</button>
                       </div>
 
-                      {/* Reply Input Box */}
                       {replyingTo === comment.id && (
                         <div className="mt-2 flex gap-2">
-                           <input 
-                             type="text" 
-                             autoFocus
-                             className="flex-1 bg-white border border-gray-300 rounded-full px-3 py-1 text-sm outline-none"
-                             placeholder={`Reply to u/${comment.author}...`}
-                             value={replyText}
-                             onChange={(e) => setReplyText(e.target.value)}
-                           />
-                           <button onClick={() => handleReply(comment.id)} className="text-blue-600 text-xs font-bold px-2">Send</button>
+                           <input type="text" autoFocus className="flex-1 bg-white border border-gray-300 rounded-full px-3 py-1 text-sm outline-none" placeholder={`Reply to u/${comment.author}...`} value={replyText} onChange={(e) => setReplyText(e.target.value)} />
+                           <button onClick={() => handleReply(comment)} className="text-blue-600 text-xs font-bold px-2">Send</button>
                         </div>
                       )}
 
-                      {/* Nested Replies */}
                       {replies.length > 0 && (
                         <div className="mt-2 pl-4 border-l-2 border-gray-200">
                           {replies.map(reply => (
@@ -270,23 +285,11 @@ export default function PostDetail({ params }) {
         </div>
       </div>
 
-      {/* Main Comment Input */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-20">
         <div className="max-w-2xl mx-auto flex gap-2 items-center">
-          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 flex-shrink-0">
-             {dbUsername ? dbUsername.charAt(0).toUpperCase() : '?'}
-          </div>
-          <input 
-            type="text" 
-            className="flex-1 bg-gray-100 border-none rounded-full px-4 py-2.5 text-sm focus:ring-1 focus:ring-black outline-none placeholder-gray-500"
-            placeholder={dbUsername ? `Comment as ${dbUsername}...` : "Add a comment..."}
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
-          />
-          <button onClick={handlePostComment} disabled={!newComment.trim()} className={`p-2.5 rounded-full transition ${newComment.trim() ? 'bg-black text-white' : 'bg-gray-200 text-gray-400'}`}>
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" /></svg>
-          </button>
+          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 flex-shrink-0">{dbUsername ? dbUsername.charAt(0).toUpperCase() : '?'}</div>
+          <input type="text" className="flex-1 bg-gray-100 border-none rounded-full px-4 py-2.5 text-sm focus:ring-1 focus:ring-black outline-none placeholder-gray-500" placeholder={dbUsername ? `Comment as ${dbUsername}...` : "Add a comment..."} value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePostComment()} />
+          <button onClick={handlePostComment} disabled={!newComment.trim()} className={`p-2.5 rounded-full transition ${newComment.trim() ? 'bg-black text-white' : 'bg-gray-200 text-gray-400'}`}><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" /></svg></button>
         </div>
       </div>
     </div>
