@@ -57,7 +57,7 @@ export default function Explore() {
 
       <div className="max-w-md mx-auto px-4 pt-6">
         
-        {/* Search Bar - NOW WORKS */}
+        {/* Search Bar */}
         <div className="relative mb-8">
           <input 
             type="text" 
@@ -72,7 +72,7 @@ export default function Explore() {
           </div>
         </div>
 
-        {/* Communities Grid - NOW LINKS TO FILTER */}
+        {/* Communities Grid */}
         <div className="mb-8">
           <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Communities</h2>
           <div className="grid grid-cols-1 gap-3">
@@ -145,10 +145,13 @@ export default function Explore() {
           </div>
           <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
         </Link>
-        <div className="flex flex-col items-center text-gray-400 cursor-not-allowed opacity-50">
+        
+        {/* CHAT BUTTON FIXED HERE */}
+        <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-           <span className="text--[10px] mt-1">Chat</span>
-        </div>
+           <span className="text-[10px] mt-1">Chat</span>
+        </Link>
+        
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
