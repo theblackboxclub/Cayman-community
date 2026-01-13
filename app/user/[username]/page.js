@@ -36,7 +36,8 @@ export default function PublicProfile({ params }) {
         const userId = userSnap.docs[0].id;
         setProfileUser({ id: userId, ...userData });
 
-        // 2. Fetch User's Posts (Removed 'orderBy' to fix 0 results bug)
+        // 2. Fetch User's Posts
+        // CRITICAL FIX: Removed 'orderBy' to prevent "Index" errors that return 0 results
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
         const postsSnap = await getDocs(qPosts);
@@ -46,7 +47,7 @@ export default function PublicProfile({ params }) {
           ...doc.data()
         }));
 
-        // Sort posts here instead (Newest first)
+        // Sort posts client-side (Newest first)
         posts.sort((a, b) => {
            const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
            const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
@@ -73,7 +74,7 @@ export default function PublicProfile({ params }) {
     setChatLoading(true);
 
     try {
-      // 1. Check if chat already exists locally (simple check)
+      // 1. Check if chat already exists locally
       const chatsRef = collection(db, "chats");
       const qChat = query(chatsRef, where("participants", "array-contains", currentUser.uid));
       const chatSnap = await getDocs(qChat);
@@ -146,7 +147,7 @@ export default function PublicProfile({ params }) {
             </div>
           </div>
 
-          {/* Message Button (Only if not viewing own profile) */}
+          {/* Message Button */}
           {currentUser?.uid !== profileUser.id && (
             <button 
               onClick={handleStartChat}
