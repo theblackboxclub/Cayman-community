@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link'; 
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation'; // Added useRouter
 import { db, auth } from '../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -9,12 +9,12 @@ import {
 } from 'firebase/firestore';
 
 function HomeContent() {
+  const router = useRouter(); // Initialize router
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   
-  // Initialize state based on URL params (if coming from Explore)
   const initialCommunity = searchParams.get('community') || 'All';
   const initialSearch = searchParams.get('search') || '';
   
@@ -31,7 +31,6 @@ function HomeContent() {
     return () => unsubscribe();
   }, []);
 
-  // Update filters if URL changes (e.g. clicking 'Home' resets it)
   useEffect(() => {
     const comm = searchParams.get('community') || 'All';
     const search = searchParams.get('search') || '';
@@ -67,6 +66,13 @@ function HomeContent() {
     }
   };
 
+  // NEW: Navigate to User Profile
+  const handleUserClick = (e, username) => {
+    e.preventDefault(); // Stop the card click
+    e.stopPropagation();
+    router.push(`/user/${username}`);
+  };
+
   const formatTime = (date) => {
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
@@ -80,13 +86,10 @@ function HomeContent() {
   };
 
   const filteredPosts = posts.filter(post => {
-    // If selectedCommunity is NOT in the default list, we still allow it (for custom communities)
     const matchesCommunity = selectedCommunity === 'All' || post.community === selectedCommunity;
-    
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = post.title.toLowerCase().includes(searchLower) || 
                           post.body.toLowerCase().includes(searchLower);
-
     return matchesCommunity && matchesSearch;
   });
 
@@ -114,7 +117,7 @@ function HomeContent() {
         </Link>
       </div>
 
-      {/* Filter Bar (Only shows default list + currently selected if custom) */}
+      {/* Filter Bar */}
       <div className="bg-white py-2 px-4 border-b border-gray-200 sticky top-[60px] z-40 overflow-x-auto">
         <div className="flex gap-2 whitespace-nowrap">
           {communities.map((c) => (
@@ -128,7 +131,6 @@ function HomeContent() {
               {c}
             </button>
           ))}
-          {/* If the user selected a custom community via URL, show it here as a chip */}
           {!communities.includes(selectedCommunity) && selectedCommunity !== 'All' && (
              <button className="px-4 py-1.5 rounded-full text-xs font-bold bg-black text-white">
                {selectedCommunity}
@@ -166,7 +168,14 @@ function HomeContent() {
                   <span className="text-gray-400 mx-1">•</span>
                   <span>{post.time}</span>
                   <span className="text-gray-400 mx-1">•</span>
-                  <span>u/{post.author}</span>
+                  
+                  {/* USERNAME LINK - CLICKABLE NOW */}
+                  <span 
+                    onClick={(e) => handleUserClick(e, post.author)}
+                    className="hover:text-black hover:underline cursor-pointer"
+                  >
+                    u/{post.author}
+                  </span>
                 </div>
 
                 <div className="px-4 pb-2">
@@ -221,13 +230,10 @@ function HomeContent() {
           </div>
           <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
         </Link>
-        
-        {/* CHAT BUTTON - ENABLED */}
         <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
            <span className="text-[10px] mt-1">Chat</span>
         </Link>
-        
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
@@ -237,7 +243,6 @@ function HomeContent() {
   );
 }
 
-// Wrapper for Suspense to avoid Build Errors
 export default function Home() {
   return (
     <Suspense fallback={<div className="p-10 text-center">Loading...</div>}>
