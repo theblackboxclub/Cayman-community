@@ -56,7 +56,6 @@ export default function ChatList() {
     setSearchError('');
     if (!newChatUsername.trim()) return;
 
-    // 1. Find the user by EXACT username
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("username", "==", newChatUsername.trim()));
     const querySnapshot = await getDocs(q);
@@ -74,14 +73,12 @@ export default function ChatList() {
       return;
     }
 
-    // 2. Check if chat already exists
     const existingChat = chats.find(c => c.participants.includes(recipientId));
     if (existingChat) {
       router.push(`/chat/${existingChat.id}`);
       return;
     }
 
-    // 3. Create the chat document
     try {
       const docRef = await addDoc(collection(db, "chats"), {
         participants: [user.uid, recipientId],
@@ -89,7 +86,6 @@ export default function ChatList() {
         lastMessage: "Chat started",
         lastUpdated: serverTimestamp()
       });
-      
       router.push(`/chat/${docRef.id}`);
     } catch (error) {
       console.error("Error creating chat:", error);
@@ -146,24 +142,40 @@ export default function ChatList() {
              <p className="text-gray-500 text-sm font-medium">No messages yet.</p>
           </div>
         ) : (
-          chats.map(chat => (
-            <Link key={chat.id} href={`/chat/${chat.id}`}>
-              <div className="p-4 border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer flex gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500 text-sm">
-                  {getOtherParticipantName(chat).charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-gray-900">{getOtherParticipantName(chat)}</span>
-                    <span className="text-xs text-gray-400">
-                      {chat.lastUpdated?.toDate ? chat.lastUpdated.toDate().toLocaleDateString() : ''}
-                    </span>
+          chats.map(chat => {
+            // CHECK FOR UNREAD MESSAGES
+            const unreadCount = chat[`unreadCount_${user.uid}`] || 0;
+            const isUnread = unreadCount > 0;
+
+            return (
+              <Link key={chat.id} href={`/chat/${chat.id}`}>
+                <div className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer flex gap-3 ${isUnread ? 'bg-blue-50' : ''}`}>
+                  <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500 text-sm relative">
+                    {getOtherParticipantName(chat).charAt(0).toUpperCase()}
+                    {/* Online status or just Unread dot? Let's use it for unread logic mostly */}
                   </div>
-                  <p className="text-sm text-gray-500 truncate">{chat.lastMessage}</p>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className={`text-sm ${isUnread ? 'font-black text-black' : 'font-bold text-gray-900'}`}>
+                        {getOtherParticipantName(chat)}
+                      </span>
+                      <span className={`text-xs ${isUnread ? 'text-blue-600 font-bold' : 'text-gray-400'}`}>
+                        {chat.lastUpdated?.toDate ? chat.lastUpdated.toDate().toLocaleDateString() : ''}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <p className={`text-sm truncate max-w-[200px] ${isUnread ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
+                        {chat.lastMessage}
+                      </p>
+                      {isUnread && (
+                        <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))
+              </Link>
+            );
+          })
         )}
       </div>
 
