@@ -4,12 +4,11 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '../../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, getDocs, orderBy, addDoc, serverTimestamp 
+  collection, query, where, getDocs, addDoc, serverTimestamp 
 } from 'firebase/firestore';
 
 export default function PublicProfile({ params }) {
   const router = useRouter();
-  // Decode the username from the URL (e.g. "SaltyIguana99")
   const profileUsername = decodeURIComponent(params.username);
   
   const [profileUser, setProfileUser] = useState(null);
@@ -37,15 +36,23 @@ export default function PublicProfile({ params }) {
         const userId = userSnap.docs[0].id;
         setProfileUser({ id: userId, ...userData });
 
-        // 2. Fetch User's Posts
+        // 2. Fetch User's Posts (Removed 'orderBy' to fix 0 results bug)
         const postsRef = collection(db, "posts");
-        const qPosts = query(postsRef, where("userId", "==", userId), orderBy("createdAt", "desc"));
+        const qPosts = query(postsRef, where("userId", "==", userId));
         const postsSnap = await getDocs(qPosts);
         
         const posts = postsSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
+
+        // Sort posts here instead (Newest first)
+        posts.sort((a, b) => {
+           const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+           const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+           return timeB - timeA;
+        });
+
         setProfilePosts(posts);
 
       } catch (error) {
@@ -66,15 +73,12 @@ export default function PublicProfile({ params }) {
     setChatLoading(true);
 
     try {
-      // 1. Check if chat already exists
+      // 1. Check if chat already exists locally (simple check)
       const chatsRef = collection(db, "chats");
-      // Note: This is a simple check. For production, you'd want a more robust compound query
-      // or check the user's chat list locally.
       const qChat = query(chatsRef, where("participants", "array-contains", currentUser.uid));
       const chatSnap = await getDocs(qChat);
       
       let existingChatId = null;
-      
       chatSnap.forEach(doc => {
         const data = doc.data();
         if (data.participants.includes(profileUser.id)) {
@@ -88,7 +92,7 @@ export default function PublicProfile({ params }) {
       }
 
       // 2. Create New Chat
-      const currentUsername = currentUser.email.split('@')[0]; // Or fetch real username if available
+      const currentUsername = currentUser.email.split('@')[0]; 
       const docRef = await addDoc(collection(db, "chats"), {
         participants: [currentUser.uid, profileUser.id],
         participantNames: [currentUsername, profileUser.username],
