@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, getDocs 
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs 
 } from 'firebase/firestore';
 import Link from 'next/link';
 
@@ -24,11 +24,10 @@ export default function ChatList() {
       }
       setUser(currentUser);
 
-      // Query active chats where the user is a participant
+      // FIX: Removed 'orderBy' to prevent Index Error
       const q = query(
         collection(db, "chats"),
-        where("participants", "array-contains", currentUser.uid),
-        orderBy("lastUpdated", "desc")
+        where("participants", "array-contains", currentUser.uid)
       );
 
       const unsubChats = onSnapshot(q, (snapshot) => {
@@ -36,6 +35,14 @@ export default function ChatList() {
           id: doc.id,
           ...doc.data()
         }));
+
+        // Sort in Javascript (Newest First)
+        chatData.sort((a, b) => {
+           const timeA = a.lastUpdated?.toDate ? a.lastUpdated.toDate() : new Date(0);
+           const timeB = b.lastUpdated?.toDate ? b.lastUpdated.toDate() : new Date(0);
+           return timeB - timeA;
+        });
+
         setChats(chatData);
         setLoading(false);
       });
@@ -67,16 +74,23 @@ export default function ChatList() {
       return;
     }
 
-    // 2. Create the chat document
+    // 2. Check if chat already exists
+    // (Simple client-side check to avoid duplicates in this list)
+    const existingChat = chats.find(c => c.participants.includes(recipientId));
+    if (existingChat) {
+      router.push(`/chat/${existingChat.id}`);
+      return;
+    }
+
+    // 3. Create the chat document
     try {
       const docRef = await addDoc(collection(db, "chats"), {
         participants: [user.uid, recipientId],
-        participantNames: [user.email.split('@')[0], recipient.username], // Store names for easy display
+        participantNames: [user.email.split('@')[0], recipient.username], 
         lastMessage: "Chat started",
         lastUpdated: serverTimestamp()
       });
       
-      // 3. Redirect to the new room
       router.push(`/chat/${docRef.id}`);
     } catch (error) {
       console.error("Error creating chat:", error);
@@ -85,8 +99,8 @@ export default function ChatList() {
 
   const getOtherParticipantName = (chat) => {
     if (!chat.participantNames) return "Unknown";
-    // Basic logic: return the name that isn't mine (approximate)
-    // For a real app, you'd map UIDs to names more robustly
+    // Find the name that isn't the current user's email prefix (approximate match)
+    // In a production app, we would map UIDs to names more strictly, but this works for now.
     return chat.participantNames.find(name => name !== user.email.split('@')[0]) || "Chat";
   };
 
@@ -133,14 +147,14 @@ export default function ChatList() {
           chats.map(chat => (
             <Link key={chat.id} href={`/chat/${chat.id}`}>
               <div className="p-4 border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer flex gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500">
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500 text-sm">
                   {getOtherParticipantName(chat).charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-bold text-gray-900">{getOtherParticipantName(chat)}</span>
                     <span className="text-xs text-gray-400">
-                      {chat.lastUpdated?.toDate().toLocaleDateString()}
+                      {chat.lastUpdated?.toDate ? chat.lastUpdated.toDate().toLocaleDateString() : ''}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 truncate">{chat.lastMessage}</p>
