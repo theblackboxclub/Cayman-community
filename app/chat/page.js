@@ -15,6 +15,7 @@ export default function ChatList() {
   const [user, setUser] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
+  const [searchError, setSearchError] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -24,7 +25,6 @@ export default function ChatList() {
       }
       setUser(currentUser);
 
-      // FIX: Removed 'orderBy' to prevent Index Error
       const q = query(
         collection(db, "chats"),
         where("participants", "array-contains", currentUser.uid)
@@ -36,7 +36,6 @@ export default function ChatList() {
           ...doc.data()
         }));
 
-        // Sort in Javascript (Newest First)
         chatData.sort((a, b) => {
            const timeA = a.lastUpdated?.toDate ? a.lastUpdated.toDate() : new Date(0);
            const timeB = b.lastUpdated?.toDate ? b.lastUpdated.toDate() : new Date(0);
@@ -54,15 +53,16 @@ export default function ChatList() {
   }, [router]);
 
   const handleStartChat = async () => {
+    setSearchError('');
     if (!newChatUsername.trim()) return;
 
-    // 1. Find the user by username
+    // 1. Find the user by EXACT username
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("username", "==", newChatUsername.trim()));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      alert("User not found. Check spelling.");
+      setSearchError("User not found. Please enter the exact username.");
       return;
     }
 
@@ -70,12 +70,11 @@ export default function ChatList() {
     const recipientId = querySnapshot.docs[0].id;
 
     if (recipientId === user.uid) {
-      alert("You cannot chat with yourself.");
+      setSearchError("You cannot chat with yourself.");
       return;
     }
 
     // 2. Check if chat already exists
-    // (Simple client-side check to avoid duplicates in this list)
     const existingChat = chats.find(c => c.participants.includes(recipientId));
     if (existingChat) {
       router.push(`/chat/${existingChat.id}`);
@@ -94,13 +93,12 @@ export default function ChatList() {
       router.push(`/chat/${docRef.id}`);
     } catch (error) {
       console.error("Error creating chat:", error);
+      setSearchError("Error creating chat. Try again.");
     }
   };
 
   const getOtherParticipantName = (chat) => {
     if (!chat.participantNames) return "Unknown";
-    // Find the name that isn't the current user's email prefix (approximate match)
-    // In a production app, we would map UIDs to names more strictly, but this works for now.
     return chat.participantNames.find(name => name !== user.email.split('@')[0]) || "Chat";
   };
 
@@ -132,6 +130,7 @@ export default function ChatList() {
               />
               <button onClick={handleStartChat} className="bg-black text-white px-4 py-2 rounded-lg text-sm font-bold">Go</button>
             </div>
+            {searchError && <p className="text-xs text-red-500 mt-2 font-bold">{searchError}</p>}
           </div>
         )}
 
@@ -142,6 +141,7 @@ export default function ChatList() {
                <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
              </div>
              <p className="text-gray-500 text-sm font-medium">No messages yet.</p>
+             <button onClick={() => setIsCreating(true)} className="mt-4 text-blue-600 font-bold text-sm">Start a chat +</button>
           </div>
         ) : (
           chats.map(chat => (
