@@ -109,8 +109,11 @@ export default function ChatList() {
       {/* Header */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10 px-4 py-3 flex items-center justify-between">
          <h1 className="font-bold text-lg text-gray-900">Messages</h1>
-         <button onClick={() => setIsCreating(!isCreating)} className="text-black">
-           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+         <button 
+           onClick={() => setIsCreating(!isCreating)} 
+           className="bg-black text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm hover:opacity-80 transition"
+         >
+           Start Chat
          </button>
       </div>
 
@@ -141,7 +144,6 @@ export default function ChatList() {
                <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
              </div>
              <p className="text-gray-500 text-sm font-medium">No messages yet.</p>
-             <button onClick={() => setIsCreating(true)} className="mt-4 text-blue-600 font-bold text-sm">Start a chat +</button>
           </div>
         ) : (
           chats.map(chat => (
