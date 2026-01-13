@@ -103,26 +103,32 @@ export default function Explore() {
             ) : trendingPosts.length === 0 ? (
               <div className="text-center text-gray-400 text-sm">No trending posts yet.</div>
             ) : (
-              trendingPosts.map(post => (
-                <div key={post.id} onClick={() => router.push(`/post/${post.id}`)} className="bg-white p-4 rounded-lg border border-gray-200 cursor-pointer shadow-sm">
-                  <div className="flex items-center gap-2 mb-1">
-                     <span className="text-[10px] font-bold text-gray-500">{post.community}</span>
-                     <span className="text-[10px] text-gray-300">•</span>
-                     <span className="text-[10px] font-bold text-gray-400">u/{post.author}</span>
-                  </div>
-                  <h3 className="font-bold text-sm text-gray-900 line-clamp-2">{post.title}</h3>
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="flex items-center gap-1 text-red-500">
-                       <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-                       <span className="text-xs font-bold">{post.votes || 0}</span>
+              trendingPosts.map(post => {
+                const isLiked = post.likedBy?.includes(user?.uid);
+                
+                return (
+                  <div key={post.id} onClick={() => router.push(`/post/${post.id}`)} className="bg-white p-4 rounded-lg border border-gray-200 cursor-pointer shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                       <span className="text-[10px] font-bold text-gray-500">{post.community}</span>
+                       <span className="text-[10px] text-gray-300">•</span>
+                       <span className="text-[10px] font-bold text-gray-400">u/{post.author}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-gray-400">
-                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                       <span className="text-xs font-bold">{post.comments || 0}</span>
+                    <h3 className="font-bold text-sm text-gray-900 line-clamp-2">{post.title}</h3>
+                    <div className="flex items-center gap-3 mt-2">
+                      {/* Heart Icon - Logic Fixed */}
+                      <div className={`flex items-center gap-1 ${isLiked ? "text-red-500" : "text-gray-400"}`}>
+                         <svg className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                         <span className="text-xs font-bold">{post.votes || 0}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-1 text-gray-400">
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                         <span className="text-xs font-bold">{post.comments || 0}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -145,13 +151,10 @@ export default function Explore() {
           </div>
           <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
         </Link>
-        
-        {/* CHAT BUTTON FIXED HERE */}
         <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
            <span className="text-[10px] mt-1">Chat</span>
         </Link>
-        
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
