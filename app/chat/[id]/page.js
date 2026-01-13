@@ -84,26 +84,35 @@ export default function ChatRoom({ params }) {
   return (
     <div className="flex flex-col h-screen bg-white">
       
-      {/* Header - Made Compact (py-2 instead of py-3) */}
+      {/* Header - Very Compact */}
       <div className="bg-white px-4 py-2 border-b border-gray-100 sticky top-0 z-10 flex items-center gap-3 shadow-sm">
         <button onClick={() => router.back()} className="text-gray-900">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
         <div className="flex items-center gap-2">
-           <div className="w-7 h-7 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center font-bold text-xs">
+           <div className="w-6 h-6 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center font-bold text-xs">
              {getHeaderName().charAt(0).toUpperCase()}
            </div>
            <h1 className="font-bold text-sm text-gray-900">{getHeaderName()}</h1>
         </div>
       </div>
 
-      {/* Messages Area - Tighter spacing (gap-1) */}
+      {/* Messages Area - Compact Bubbles */}
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-1 pb-20">
-        {messages.map((msg) => {
+        {messages.map((msg, index) => {
           const isMe = msg.senderId === user?.uid;
+          
           return (
-            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] px-3 py-1.5 text-sm rounded-2xl ${
+            <div key={msg.id} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start items-end gap-2'}`}>
+              
+              {/* Show Avatar for Other Person */}
+              {!isMe && (
+                <div className="w-5 h-5 bg-gray-200 rounded-full flex-shrink-0 flex items-center justify-center text-[8px] font-bold text-gray-500">
+                   {getHeaderName().charAt(0).toUpperCase()}
+                </div>
+              )}
+
+              <div className={`max-w-[65%] px-3 py-1.5 text-sm rounded-2xl ${
                 isMe 
                   ? 'bg-blue-500 text-white' 
                   : 'bg-gray-100 text-gray-900'
@@ -116,12 +125,12 @@ export default function ChatRoom({ params }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input Area - Slimmer (py-2) and Arrow Icon */}
+      {/* Input Area - Ultra Slim */}
       <div className="fixed bottom-0 left-0 right-0 bg-white px-3 py-2 border-t border-gray-100">
         <form onSubmit={handleSend} className="max-w-md mx-auto relative flex items-center">
           <input 
             type="text" 
-            className="w-full bg-gray-100 border-none rounded-full pl-4 pr-10 py-2 text-sm focus:ring-0 outline-none placeholder-gray-400 text-gray-900"
+            className="w-full bg-gray-100 border-none rounded-full pl-4 pr-10 py-1.5 text-sm focus:ring-0 outline-none placeholder-gray-400 text-gray-900"
             placeholder="Message..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
@@ -129,7 +138,7 @@ export default function ChatRoom({ params }) {
           {newMessage.trim() && (
             <button 
               type="submit" 
-              className="absolute right-1.5 p-1.5 bg-blue-500 rounded-full text-white hover:bg-blue-600 transition flex items-center justify-center"
+              className="absolute right-1.5 p-1 bg-blue-500 rounded-full text-white hover:bg-blue-600 transition flex items-center justify-center"
             >
               <svg className="w-3 h-3 transform rotate-90" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
             </button>
