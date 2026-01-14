@@ -22,7 +22,6 @@ export default function PostDetail({ params }) {
   const [loading, setLoading] = useState(true);
   const [dbUsername, setDbUsername] = useState(null);
   
-  // Safe Deletion States
   const [confirmDeletePost, setConfirmDeletePost] = useState(false);
 
   useEffect(() => {
@@ -164,8 +163,6 @@ export default function PostDetail({ params }) {
     }
   };
 
-  // --- SAFE DELETE ACTIONS ---
-  
   const handleDeletePost = async () => {
     if (!confirmDeletePost) {
       setConfirmDeletePost(true);
@@ -188,6 +185,11 @@ export default function PostDetail({ params }) {
     } catch (error) {
       console.error("Error deleting comment:", error);
     }
+  };
+
+  // --- NEW: Handle User Click ---
+  const handleUserClick = (username) => {
+    router.push(`/user/${username}`);
   };
 
   const formatTime = (timestamp) => {
@@ -241,7 +243,12 @@ export default function PostDetail({ params }) {
                 <span className="font-bold text-sm text-gray-900">{post.community}</span>
                 <span className="text-xs text-gray-400">• {post.createdAt ? formatTime(post.createdAt) : ''}</span>
               </div>
-              <div className="text-xs text-cyan-600 font-medium">u/{post.author}</div>
+              <div 
+                onClick={() => handleUserClick(post.author)} 
+                className="text-xs text-cyan-600 font-medium cursor-pointer hover:underline"
+              >
+                u/{post.author}
+              </div>
             </div>
           </div>
           <h1 className="text-xl font-black text-gray-900 mb-2 leading-snug">{post.title}</h1>
@@ -286,7 +293,10 @@ export default function PostDetail({ params }) {
               return (
                 <div key={comment.id} className="mb-4">
                   <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex-shrink-0 mt-1 flex items-center justify-center text-xs font-bold text-gray-400">
+                    <div 
+                      onClick={() => handleUserClick(comment.author)}
+                      className="w-8 h-8 rounded-full bg-white border border-gray-200 flex-shrink-0 mt-1 flex items-center justify-center text-xs font-bold text-gray-400 cursor-pointer hover:border-cyan-400"
+                    >
                       {comment.author.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1">
@@ -299,7 +309,12 @@ export default function PostDetail({ params }) {
                         )}
 
                         <div className="flex justify-between items-center mb-1 pr-6">
-                          <span className="text-xs font-bold text-gray-900">u/{comment.author}</span>
+                          <span 
+                            onClick={() => handleUserClick(comment.author)}
+                            className="text-xs font-bold text-gray-900 cursor-pointer hover:text-cyan-600 hover:underline"
+                          >
+                            u/{comment.author}
+                          </span>
                           <span className="text-[10px] text-gray-400">{comment.createdAt ? formatTime(comment.createdAt) : ''}</span>
                         </div>
                         <p className="text-sm text-gray-800">{comment.text}</p>
@@ -331,7 +346,12 @@ export default function PostDetail({ params }) {
                                    </button>
                                 )}
                                 <div className="flex justify-between items-center mb-1">
-                                  <span className="text-xs font-bold text-gray-800">u/{reply.author}</span>
+                                  <span 
+                                    onClick={() => handleUserClick(reply.author)}
+                                    className="text-xs font-bold text-gray-800 cursor-pointer hover:text-cyan-600 hover:underline"
+                                  >
+                                    u/{reply.author}
+                                  </span>
                                 </div>
                                 <p className="text-xs text-gray-700">{reply.text}</p>
                               </div>
