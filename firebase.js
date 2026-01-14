@@ -1,21 +1,21 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage"; 
+import { getStorage } from "firebase/storage"; // <--- NEW IMPORT
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAcEwrrQhdrANiJPkDzikqC-3t0wXXE9S0",
-  authDomain: "cayman-community.firebaseapp.com",
-  projectId: "cayman-community",
-  storageBucket: "cayman-community.firebasestorage.app",
-  messagingSenderId: "367138686968",
-  appId: "1:367138686968:web:7f6d3283282a0888913959"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
 const auth = getAuth(app);
-const storage = getStorage(app); 
+const db = getFirestore(app);
+const storage = getStorage(app); // <--- NEW SERVICE
 
-export { db, auth, storage };
+export { auth, db, storage }; // <--- EXPORT STORAGE
