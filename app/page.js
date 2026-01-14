@@ -8,6 +8,30 @@ import {
   collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 
+// Helper for consistent colors
+const getAvatarColor = (name) => {
+  if (!name) return 'bg-gray-400';
+  const colors = [
+    'bg-red-500', 'bg-orange-500', 'bg-amber-500', 
+    'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 
+    'bg-cyan-500', 'bg-blue-500', 'bg-indigo-500', 
+    'bg-violet-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+};
+
+// Map for "Generated" Community Icons
+const communityIcons = {
+  "c/General": { icon: "🌴", color: "bg-teal-100 text-teal-800" },
+  "c/CaymanFitness": { icon: "🏃", color: "bg-orange-100 text-orange-800" },
+  "c/IslandJobs": { icon: "💼", color: "bg-blue-100 text-blue-800" },
+  "c/AskLocals": { icon: "🗣️", color: "bg-yellow-100 text-yellow-800" },
+  "c/Events": { icon: "🎉", color: "bg-purple-100 text-purple-800" },
+  "c/RealEstate": { icon: "🏠", color: "bg-green-100 text-green-800" },
+};
+
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -21,10 +45,8 @@ function HomeContent() {
   const [selectedCommunity, setSelectedCommunity] = useState(initialCommunity);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
 
-  const communities = [
-    "All", "c/General", "c/CaymanFitness", "c/IslandJobs",
-    "c/AskLocals", "c/Events", "c/RealEstate"
-  ];
+  const communities = Object.keys(communityIcons);
+  communities.unshift("All");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => setCurrentUser(user));
@@ -100,10 +122,7 @@ function HomeContent() {
         
         {/* NEW LOGO: Option 1 + Option 3 Combined */}
         <div className="flex items-center gap-2">
-           {/* The Ring (CSS Only, No SVG) */}
            <div className="w-6 h-6 rounded-full border-[5px] border-cyan-600"></div>
-           
-           {/* The Typography */}
            <span className="font-black text-xl tracking-tighter text-gray-900">
              Circle<span className="text-cyan-600">Cayman</span>
            </span>
@@ -169,23 +188,29 @@ function HomeContent() {
 
         {filteredPosts.map((post) => {
           const isLiked = post.likedBy?.includes(currentUser?.uid);
+          
+          // Get "Generated" Community Icon
+          const commData = communityIcons[post.community] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
+          
           return (
             <Link href={`/post/${post.id}`} key={post.id}>
               {/* Card Design */}
               <div className="bg-white mb-3 rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all active:scale-[0.99] cursor-pointer">
                 
                 <div className="flex items-center text-xs text-gray-500 mb-2">
-                  <div className="w-6 h-6 rounded-full bg-cyan-50 text-cyan-700 flex items-center justify-center font-bold mr-2 text-[10px]">
-                    {post.community ? post.community.charAt(2) : "G"}
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold mr-2 text-[12px] ${commData.color}`}>
+                    {commData.icon}
                   </div>
                   <span className="font-bold text-gray-900 mr-1">{post.community}</span>
                   <span className="text-gray-300 mx-1">•</span>
                   <span>{post.time}</span>
                   <span className="text-gray-300 mx-1">•</span>
                   
+                  {/* Random Color Avatar for User */}
+                  <div className={`w-4 h-4 rounded-full ml-1 mr-1 flex-shrink-0 ${getAvatarColor(post.author)}`}></div>
                   <span 
                     onClick={(e) => handleUserClick(e, post.author)}
-                    className="hover:text-cyan-600 hover:underline cursor-pointer font-medium"
+                    className="hover:text-cyan-600 hover:underline cursor-pointer font-medium text-gray-700"
                   >
                     u/{post.author}
                   </span>
