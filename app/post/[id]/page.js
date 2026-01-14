@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+// Update import path to point to root firebase.js
 import { db, auth } from '../../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -21,6 +22,9 @@ export default function PostDetail({ params }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dbUsername, setDbUsername] = useState(null);
+  
+  // Safe Deletion States
+  const [confirmDeletePost, setConfirmDeletePost] = useState(false);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -161,21 +165,26 @@ export default function PostDetail({ params }) {
     }
   };
 
+  // --- SAFE DELETE ACTIONS (NO WINDOW.CONFIRM) ---
+  
   const handleDeletePost = async () => {
-    // FIX: Using window.confirm to avoid build errors
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    if (!confirmDeletePost) {
+      setConfirmDeletePost(true);
+      // Reset confirmation after 3 seconds if not clicked
+      setTimeout(() => setConfirmDeletePost(false), 3000);
+      return;
+    }
+    
     try {
       await deleteDoc(doc(db, "posts", id));
       router.push('/'); 
     } catch (error) {
       console.error("Error deleting post:", error);
-      alert("Could not delete post.");
     }
   };
 
   const handleDeleteComment = async (commentId) => {
-    // FIX: Using window.confirm to avoid build errors
-    if (!window.confirm("Delete this comment?")) return;
+    // Direct delete for comments for speed
     try {
       await deleteDoc(doc(db, "posts", id, "comments", commentId));
       await updateDoc(doc(db, "posts", id), { comments: increment(-1) });
@@ -209,8 +218,15 @@ export default function PostDetail({ params }) {
         </div>
         
         {isMyPost && (
-          <button onClick={handleDeletePost} className="text-red-500 hover:bg-red-50 p-2 rounded-full">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          <button 
+            onClick={handleDeletePost} 
+            className={`p-2 rounded-full transition ${confirmDeletePost ? 'bg-red-500 text-white' : 'text-red-500 hover:bg-red-50'}`}
+          >
+            {confirmDeletePost ? (
+              <span className="text-xs font-bold px-2">Confirm?</span>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            )}
           </button>
         )}
       </div>
