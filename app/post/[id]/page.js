@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { db, auth } from '../../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  doc, getDoc, onSnapshot, collection, addDoc, query, orderBy, serverTimestamp, updateDoc, increment, arrayUnion, arrayRemove 
+  doc, getDoc, onSnapshot, collection, addDoc, query, orderBy, serverTimestamp, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc 
 } from 'firebase/firestore';
 
 export default function PostDetail({ params }) {
@@ -44,6 +44,8 @@ export default function PostDetail({ params }) {
       if (docSnap.exists()) {
         setPost({ id: docSnap.id, ...docSnap.data() });
       } else {
+        // If post is deleted, it might vanish, handled by redirect usually or just showing not found
+        setPost(null); 
         setLoading(false);
       }
     });
@@ -64,17 +66,17 @@ export default function PostDetail({ params }) {
   // --- NOTIFICATION HELPER ---
   const sendNotification = async (toUserId, type, text, contentType) => {
     if (!user || !toUserId) return;
-    if (user.uid === toUserId) return; // Don't notify yourself
+    if (user.uid === toUserId) return; 
 
     try {
       await addDoc(collection(db, "notifications"), {
-        toUserId: toUserId,       // Who gets it
-        fromUserId: user.uid,     // Who sent it
+        toUserId: toUserId,       
+        fromUserId: user.uid,     
         fromUser: dbUsername || "Anonymous",
-        type: type,               // 'like' or 'reply'
-        text: text || "",         // Preview text
-        contentType: contentType, // 'post' or 'comment'
-        postId: id,               // Link to this post
+        type: type,               
+        text: text || "",         
+        contentType: contentType, 
+        postId: id,               
         read: false,
         createdAt: serverTimestamp()
       });
@@ -103,7 +105,9 @@ export default function PostDetail({ params }) {
       await updateDoc(doc(db, "posts", id), { comments: increment(1) });
       
       // Notify Post Author
-      await sendNotification(post.userId, 'reply', newComment.substring(0, 50), 'post');
+      if (post && post.userId) {
+        await sendNotification(post.userId, 'reply', newComment.substring(0, 50), 'post');
+      }
 
       setNewComment('');
     } catch (error) {
@@ -146,7 +150,6 @@ export default function PostDetail({ params }) {
       await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(user.uid) });
     } else {
       await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(user.uid) });
-      // Notify Post Author
       await sendNotification(post.userId, 'like', '', 'post');
     }
   };
@@ -160,8 +163,29 @@ export default function PostDetail({ params }) {
       await updateDoc(commentRef, { votes: increment(-1), likedBy: arrayRemove(user.uid) });
     } else {
       await updateDoc(commentRef, { votes: increment(1), likedBy: arrayUnion(user.uid) });
-      // Notify Comment Author
       await sendNotification(comment.userId, 'like', '', 'comment');
+    }
+  };
+
+  // --- DELETE ACTIONS ---
+  const handleDeletePost = async () => {
+    if (!confirm("Are you sure you want to delete this post?")) return;
+    try {
+      await deleteDoc(doc(db, "posts", id));
+      router.push('/'); // Go back home
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      alert("Could not delete post.");
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!confirm("Delete this comment?")) return;
+    try {
+      await deleteDoc(doc(db, "posts", id, "comments", commentId));
+      await updateDoc(doc(db, "posts", id), { comments: increment(-1) });
+    } catch (error) {
+      console.error("Error deleting comment:", error);
     }
   };
 
@@ -176,14 +200,25 @@ export default function PostDetail({ params }) {
   if (loading) return <div className="p-8 text-center text-gray-500 text-sm">Loading...</div>;
   if (!post) return <div className="p-8 text-center">Post not found</div>;
 
+  const isMyPost = user && post.userId === user.uid;
+
   return (
     <div className="min-h-screen bg-white pb-24">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10 px-4 py-3 flex items-center gap-4">
-        <button onClick={() => router.back()} className="text-gray-600 hover:text-black">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-        </button>
-        <span className="font-bold text-lg text-gray-900">Thread</span>
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.back()} className="text-gray-600 hover:text-black">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <span className="font-bold text-lg text-gray-900">Thread</span>
+        </div>
+        
+        {/* DELETE POST BUTTON (If Owner) */}
+        {isMyPost && (
+          <button onClick={handleDeletePost} className="text-red-500 hover:bg-red-50 p-2 rounded-full">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          </button>
+        )}
       </div>
 
       <div className="max-w-2xl mx-auto">
@@ -234,13 +269,26 @@ export default function PostDetail({ params }) {
             rootComments.map((comment) => {
               const replies = getReplies(comment.id);
               const isLiked = comment.likedBy?.includes(user?.uid);
+              const isMyComment = user && comment.userId === user.uid;
+
               return (
                 <div key={comment.id} className="mb-4">
                   <div className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0 mt-1" />
                     <div className="flex-1">
-                      <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
-                        <div className="flex justify-between items-center mb-1">
+                      <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 relative group">
+                        
+                        {/* DELETE COMMENT BUTTON (On Hover) */}
+                        {isMyComment && (
+                          <button 
+                             onClick={() => handleDeleteComment(comment.id)}
+                             className="absolute top-2 right-2 text-gray-300 hover:text-red-500"
+                          >
+                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
+
+                        <div className="flex justify-between items-center mb-1 pr-6">
                           <span className="text-xs font-bold text-gray-900">u/{comment.author}</span>
                           <span className="text-[10px] text-gray-400">{comment.createdAt ? formatTime(comment.createdAt) : ''}</span>
                         </div>
@@ -266,7 +314,15 @@ export default function PostDetail({ params }) {
                         <div className="mt-2 pl-4 border-l-2 border-gray-200">
                           {replies.map(reply => (
                             <div key={reply.id} className="mb-3">
-                              <div className="bg-gray-100 p-2 rounded-lg">
+                              <div className="bg-gray-100 p-2 rounded-lg relative group">
+                                {user && reply.userId === user.uid && (
+                                   <button 
+                                      onClick={() => handleDeleteComment(reply.id)}
+                                      className="absolute top-1 right-1 text-gray-300 hover:text-red-500"
+                                   >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                   </button>
+                                )}
                                 <div className="flex justify-between items-center mb-1">
                                   <span className="text-xs font-bold text-gray-800">u/{reply.author}</span>
                                 </div>
