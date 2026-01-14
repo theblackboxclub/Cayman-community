@@ -98,18 +98,12 @@ function HomeContent() {
       {/* Top Nav - Glassmorphism */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-gray-100 shadow-sm">
         
-        {/* LOGO OPTION 2: "The Horizon" */}
+        {/* NEW LOGO: Option 1 + Option 3 Combined */}
         <div className="flex items-center gap-2">
-           <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white shadow-md transform rotate-3">
-             {/* Simple Sun & Horizon Line */}
-             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 4v2" /> 
-                <path d="M5.22 6.22l1.42 1.42" />
-                <path d="M18.78 6.22l-1.42 1.42" />
-                <path d="M2 18h20" /> 
-                <path d="M4 18a8 8 0 0 1 16 0" /> 
-             </svg>
-           </div>
+           {/* The Ring (CSS Only, No SVG) */}
+           <div className="w-6 h-6 rounded-full border-[5px] border-cyan-600"></div>
+           
+           {/* The Typography */}
            <span className="font-black text-xl tracking-tighter text-gray-900">
              Circle<span className="text-cyan-600">Cayman</span>
            </span>
