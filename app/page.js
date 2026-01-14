@@ -98,13 +98,16 @@ function HomeContent() {
       {/* Top Nav - Glassmorphism */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-gray-100 shadow-sm">
         
-        {/* NEW TEAL LOGO */}
+        {/* LOGO OPTION 2: "The Horizon" */}
         <div className="flex items-center gap-2">
-           {/* Custom Wave "C" Icon */}
-           <div className="w-8 h-8 text-cyan-600">
-             <svg viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-               <path d="M50 0C22.4 0 0 22.4 0 50C0 77.6 22.4 100 50 100C77.6 100 100 77.6 100 50H80C80 66.6 66.6 80 50 80C33.4 80 20 66.6 20 50C20 33.4 33.4 20 50 20C58.2 20 65.6 23.3 71.2 28.8L85.4 14.6C76.2 5.4 63.8 0 50 0Z" />
-               <circle cx="75" cy="50" r="10" />
+           <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white shadow-md transform rotate-3">
+             {/* Simple Sun & Horizon Line */}
+             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 4v2" /> 
+                <path d="M5.22 6.22l1.42 1.42" />
+                <path d="M18.78 6.22l-1.42 1.42" />
+                <path d="M2 18h20" /> 
+                <path d="M4 18a8 8 0 0 1 16 0" /> 
              </svg>
            </div>
            <span className="font-black text-xl tracking-tighter text-gray-900">
