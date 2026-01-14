@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db, storage } from '../../../firebase'; 
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth'; // Added signOut
 import { 
   collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// Helper to generate consistent colors from names
+// Helper for colors
 const getAvatarColor = (name) => {
   const colors = [
     'bg-red-500', 'bg-orange-500', 'bg-amber-500', 
@@ -39,7 +39,6 @@ export default function PublicProfile({ params }) {
       setCurrentUser(user);
       
       try {
-        // 1. Find User
         const usersRef = collection(db, "users");
         const qUser = query(usersRef, where("username", "==", profileUsername));
         const userSnap = await getDocs(qUser);
@@ -53,7 +52,6 @@ export default function PublicProfile({ params }) {
         const userId = userSnap.docs[0].id;
         setProfileUser({ id: userId, ...userData });
 
-        // 2. Fetch Posts
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
         const postsSnap = await getDocs(qPosts);
@@ -87,16 +85,13 @@ export default function PublicProfile({ params }) {
 
     setUploading(true);
     try {
-      // Upload to Firebase Storage
       const storageRef = ref(storage, `profile_pics/${currentUser.uid}/${Date.now()}-${file.name}`);
       const snapshot = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(snapshot.ref);
 
-      // Update Firestore User Document
       const userRef = doc(db, "users", profileUser.id);
       await updateDoc(userRef, { profilePic: downloadURL });
 
-      // Update Local State
       setProfileUser(prev => ({ ...prev, profilePic: downloadURL }));
       alert("Profile picture updated!");
     } catch (error) {
@@ -148,21 +143,36 @@ export default function PublicProfile({ params }) {
     }
   };
 
+  // --- LOGOUT FUNCTION ---
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/signup');
+  };
+
   if (loading) return <div className="p-10 text-center text-gray-400 font-medium">Loading Profile...</div>;
   if (!profileUser) return <div className="p-10 text-center text-gray-500">User not found.</div>;
 
   const totalLikes = profilePosts.reduce((acc, post) => acc + (post.votes || 0), 0);
-  const bgColor = getAvatarColor(profileUser.username); // Random color based on name
+  const bgColor = getAvatarColor(profileUser.username); 
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
       
-      {/* Header */}
-      <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center gap-3 shadow-sm">
-        <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-        </button>
-        <h1 className="font-bold text-lg text-gray-900">Profile</h1>
+      {/* Header with Logout */}
+      <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <h1 className="font-bold text-lg text-gray-900">Profile</h1>
+        </div>
+        
+        {/* LOGOUT BUTTON (Only if viewing own profile) */}
+        {currentUser?.uid === profileUser.id && (
+          <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-full transition">
+            Sign Out
+          </button>
+        )}
       </div>
 
       <div className="max-w-md mx-auto pt-6 px-4">
@@ -172,16 +182,13 @@ export default function PublicProfile({ params }) {
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
           <div className="relative z-10 group">
-            {/* AVATAR CIRCLE */}
             <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold mb-3 border-[4px] border-white shadow-md mx-auto overflow-hidden relative ${!profileUser.profilePic ? bgColor : 'bg-white'}`}>
-              
               {profileUser.profilePic ? (
                 <img src={profileUser.profilePic} alt={profileUser.username} className="w-full h-full object-cover" />
               ) : (
                 <span className="text-white">{profileUser.username.charAt(0).toUpperCase()}</span>
               )}
 
-              {/* Edit Overlay (Only for Owner) */}
               {currentUser?.uid === profileUser.id && (
                 <div 
                   onClick={() => fileInputRef.current?.click()}
@@ -192,14 +199,7 @@ export default function PublicProfile({ params }) {
               )}
             </div>
 
-            {/* Hidden Input for Upload */}
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*"
-              onChange={handleImageUpload}
-            />
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
             {uploading && <p className="text-xs text-cyan-600 font-bold mb-1">Uploading...</p>}
             
             <h2 className="text-2xl font-black text-gray-900 mb-1">u/{profileUser.username}</h2>
