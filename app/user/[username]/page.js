@@ -22,7 +22,6 @@ export default function PublicProfile({ params }) {
       setCurrentUser(user);
       
       try {
-        // 1. Find User ID based on Username
         const usersRef = collection(db, "users");
         const qUser = query(usersRef, where("username", "==", profileUsername));
         const userSnap = await getDocs(qUser);
@@ -36,7 +35,6 @@ export default function PublicProfile({ params }) {
         const userId = userSnap.docs[0].id;
         setProfileUser({ id: userId, ...userData });
 
-        // 2. Fetch User's Posts
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
         const postsSnap = await getDocs(qPosts);
@@ -46,7 +44,6 @@ export default function PublicProfile({ params }) {
           ...doc.data()
         }));
 
-        // Client-side sort (Newest first)
         posts.sort((a, b) => {
            const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
            const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
@@ -73,7 +70,6 @@ export default function PublicProfile({ params }) {
     setChatLoading(true);
 
     try {
-      // Check for existing chat
       const chatsRef = collection(db, "chats");
       const qChat = query(chatsRef, where("participants", "array-contains", currentUser.uid));
       const chatSnap = await getDocs(qChat);
@@ -91,7 +87,6 @@ export default function PublicProfile({ params }) {
         return;
       }
 
-      // Create New Chat
       const currentUsername = currentUser.email.split('@')[0]; 
       const docRef = await addDoc(collection(db, "chats"), {
         participants: [currentUser.uid, profileUser.id],
@@ -117,7 +112,7 @@ export default function PublicProfile({ params }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
       
-      {/* Glass Header */}
+      {/* Header */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center gap-3 shadow-sm">
         <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
@@ -129,7 +124,6 @@ export default function PublicProfile({ params }) {
         
         {/* Profile Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center text-center mb-6 relative overflow-hidden">
-          {/* Decorative background blur */}
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
           <div className="relative z-10">
@@ -147,11 +141,11 @@ export default function PublicProfile({ params }) {
               </div>
               <div className="flex-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
                 <span className="block text-xl font-black text-gray-900">{totalLikes}</span>
-                <span className="text-[10px] font-bold text-gray-400 uppercase">Karma</span>
+                {/* CHANGED KARMA TO LIKES */}
+                <span className="text-[10px] font-bold text-gray-400 uppercase">Likes</span>
               </div>
             </div>
 
-            {/* Message Button (Only if not viewing own profile) */}
             {currentUser?.uid !== profileUser.id && (
               <button 
                 onClick={handleStartChat}
@@ -169,12 +163,10 @@ export default function PublicProfile({ params }) {
           </div>
         </div>
 
-        {/* Recent Posts Header */}
         <div className="flex items-center gap-2 mb-3 px-1">
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Recent Activity</span>
         </div>
 
-        {/* Posts List */}
         <div className="space-y-3 pb-10">
           {profilePosts.length === 0 ? (
             <div className="text-center py-10 text-gray-400 text-sm bg-white/50 rounded-2xl border border-dashed border-gray-200">
