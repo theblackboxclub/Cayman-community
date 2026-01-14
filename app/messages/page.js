@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+// Ensure this path points to your root firebase.js
 import { db, auth } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch 
+  collection, query, where, onSnapshot, doc, updateDoc, writeBatch 
 } from 'firebase/firestore';
 import Link from 'next/link';
 
@@ -22,10 +23,10 @@ export default function Inbox() {
       }
       setUser(currentUser);
 
+      // FIXED QUERY: Removed 'orderBy' to prevent Index errors that cause "Loading..." hang
       const q = query(
         collection(db, "notifications"),
-        where("toUserId", "==", currentUser.uid),
-        orderBy("createdAt", "desc")
+        where("toUserId", "==", currentUser.uid)
       );
 
       const unsubscribeNotifs = onSnapshot(q, (snapshot) => {
@@ -33,8 +34,19 @@ export default function Inbox() {
           id: doc.id,
           ...doc.data()
         }));
+
+        // Sort in Javascript instead (Newest first)
+        notifs.sort((a, b) => {
+           const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+           const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+           return timeB - timeA;
+        });
+
         setNotifications(notifs);
         setLoading(false);
+      }, (error) => {
+        console.error("Error fetching notifications:", error);
+        setLoading(false); // Stop loading even if error
       });
 
       return () => unsubscribeNotifs();
@@ -57,18 +69,27 @@ export default function Inbox() {
   };
 
   const markAllAsRead = async () => {
-    const batch = writeBatch(db);
-    notifications.forEach(n => {
-      if (!n.read) {
-        const ref = doc(db, "notifications", n.id);
-        batch.update(ref, { read: true });
-      }
-    });
-    await batch.commit();
+    try {
+      const batch = writeBatch(db);
+      let updateCount = 0;
+      notifications.forEach(n => {
+        if (!n.read) {
+          const ref = doc(db, "notifications", n.id);
+          batch.update(ref, { read: true });
+          updateCount++;
+        }
+      });
+      if (updateCount > 0) await batch.commit();
+    } catch (error) {
+       console.error("Error marking all read:", error);
+    }
   };
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
+    // Handle cases where timestamp might be pending or missing
+    if (!timestamp.toDate) return 'Just now';
+    
     const date = timestamp.toDate();
     const now = new Date();
     const diff = Math.floor((now - date) / 1000); 
@@ -168,7 +189,7 @@ export default function Inbox() {
            <span className="text-[10px] mt-1">Chat</span>
         </Link>
         <div className="flex flex-col items-center text-black cursor-pointer">
-           <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg>
+           <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg>
            <span className="text-[10px] mt-1 font-bold">Inbox</span>
         </div>
       </div>
