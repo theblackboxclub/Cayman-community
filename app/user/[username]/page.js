@@ -1,11 +1,25 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth, db } from '../../../firebase'; 
+import { auth, db, storage } from '../../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, getDocs, addDoc, serverTimestamp 
+  collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc 
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+// Helper to generate consistent colors from names
+const getAvatarColor = (name) => {
+  const colors = [
+    'bg-red-500', 'bg-orange-500', 'bg-amber-500', 
+    'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 
+    'bg-cyan-500', 'bg-blue-500', 'bg-indigo-500', 
+    'bg-violet-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+};
 
 export default function PublicProfile({ params }) {
   const router = useRouter();
@@ -16,12 +30,16 @@ export default function PublicProfile({ params }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       
       try {
+        // 1. Find User
         const usersRef = collection(db, "users");
         const qUser = query(usersRef, where("username", "==", profileUsername));
         const userSnap = await getDocs(qUser);
@@ -35,6 +53,7 @@ export default function PublicProfile({ params }) {
         const userId = userSnap.docs[0].id;
         setProfileUser({ id: userId, ...userData });
 
+        // 2. Fetch Posts
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
         const postsSnap = await getDocs(qPosts);
@@ -61,6 +80,32 @@ export default function PublicProfile({ params }) {
 
     return () => unsubscribe();
   }, [profileUsername]);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !currentUser) return;
+
+    setUploading(true);
+    try {
+      // Upload to Firebase Storage
+      const storageRef = ref(storage, `profile_pics/${currentUser.uid}/${Date.now()}-${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+
+      // Update Firestore User Document
+      const userRef = doc(db, "users", profileUser.id);
+      await updateDoc(userRef, { profilePic: downloadURL });
+
+      // Update Local State
+      setProfileUser(prev => ({ ...prev, profilePic: downloadURL }));
+      alert("Profile picture updated!");
+    } catch (error) {
+      console.error("Error uploading photo:", error);
+      alert("Failed to upload photo.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleStartChat = async () => {
     if (!currentUser) {
@@ -99,7 +144,6 @@ export default function PublicProfile({ params }) {
       
     } catch (error) {
       console.error("Error starting chat:", error);
-      alert("Could not start chat.");
       setChatLoading(false);
     }
   };
@@ -108,6 +152,7 @@ export default function PublicProfile({ params }) {
   if (!profileUser) return <div className="p-10 text-center text-gray-500">User not found.</div>;
 
   const totalLikes = profilePosts.reduce((acc, post) => acc + (post.votes || 0), 0);
+  const bgColor = getAvatarColor(profileUser.username); // Random color based on name
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
@@ -126,10 +171,36 @@ export default function PublicProfile({ params }) {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center text-center mb-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
-          <div className="relative z-10">
-            <div className="w-24 h-24 bg-black text-white rounded-full flex items-center justify-center text-4xl font-bold mb-3 border-[4px] border-white shadow-md mx-auto">
-              {profileUser.username.charAt(0).toUpperCase()}
+          <div className="relative z-10 group">
+            {/* AVATAR CIRCLE */}
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold mb-3 border-[4px] border-white shadow-md mx-auto overflow-hidden relative ${!profileUser.profilePic ? bgColor : 'bg-white'}`}>
+              
+              {profileUser.profilePic ? (
+                <img src={profileUser.profilePic} alt={profileUser.username} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white">{profileUser.username.charAt(0).toUpperCase()}</span>
+              )}
+
+              {/* Edit Overlay (Only for Owner) */}
+              {currentUser?.uid === profileUser.id && (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                >
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </div>
+              )}
             </div>
+
+            {/* Hidden Input for Upload */}
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*"
+              onChange={handleImageUpload}
+            />
+            {uploading && <p className="text-xs text-cyan-600 font-bold mb-1">Uploading...</p>}
             
             <h2 className="text-2xl font-black text-gray-900 mb-1">u/{profileUser.username}</h2>
             <p className="text-xs text-cyan-600 font-bold uppercase tracking-widest mb-6">CircleCayman Member</p>
@@ -141,7 +212,6 @@ export default function PublicProfile({ params }) {
               </div>
               <div className="flex-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
                 <span className="block text-xl font-black text-gray-900">{totalLikes}</span>
-                {/* CHANGED KARMA TO LIKES */}
                 <span className="text-[10px] font-bold text-gray-400 uppercase">Likes</span>
               </div>
             </div>
@@ -152,12 +222,7 @@ export default function PublicProfile({ params }) {
                 disabled={chatLoading}
                 className="w-full bg-cyan-600 text-white py-3 rounded-xl text-sm font-bold shadow-md hover:bg-cyan-700 transition flex items-center justify-center gap-2"
               >
-                {chatLoading ? "Loading..." : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                    Send Message
-                  </>
-                )}
+                {chatLoading ? "Loading..." : "Send Message"}
               </button>
             )}
           </div>
@@ -183,14 +248,8 @@ export default function PublicProfile({ params }) {
                 <p className="text-xs text-gray-500 line-clamp-2 mb-3">{post.body}</p>
                 
                 <div className="flex items-center gap-4 text-gray-400 border-t border-gray-50 pt-2">
-                  <div className="flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                    <span className="text-xs font-bold">{post.votes || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                    <span className="text-xs font-bold">{post.comments || 0}</span>
-                  </div>
+                  <span className="text-xs font-bold flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg> {post.votes || 0}</span>
+                  <span className="text-xs font-bold flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg> {post.comments || 0}</span>
                 </div>
               </div>
             ))
