@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link'; 
-import { useRouter, useSearchParams } from 'next/navigation'; // Added useRouter
+import { useRouter, useSearchParams } from 'next/navigation';
 import { db, auth } from '../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 
 function HomeContent() {
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,9 +66,8 @@ function HomeContent() {
     }
   };
 
-  // NEW: Navigate to User Profile
   const handleUserClick = (e, username) => {
-    e.preventDefault(); // Stop the card click
+    e.preventDefault(); 
     e.stopPropagation();
     router.push(`/user/${username}`);
   };
@@ -94,16 +93,18 @@ function HomeContent() {
   });
 
   return (
-    <div className="min-h-screen bg-[#DAE0E6] pb-24"> 
-      {/* Top Nav */}
-      <div className="bg-white px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-        <div className="font-bold text-lg tracking-tight text-gray-900">CaymanCircle</div>
+    // NEW BACKGROUND: Gradient from faint blue (sky) to white (sand)
+    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24"> 
+      
+      {/* Top Nav - Glassmorphism Effect */}
+      <div className="bg-white/80 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-white/20 shadow-sm">
+        <div className="font-black text-xl tracking-tight text-gray-900">CaymanCircle 🌴</div>
         
-        <div className="flex-1 mx-3 bg-gray-100 rounded-full px-4 py-2 flex items-center focus-within:ring-1 focus-within:ring-gray-300">
+        <div className="flex-1 mx-3 bg-white/50 border border-gray-200 rounded-full px-4 py-2 flex items-center focus-within:ring-2 focus-within:ring-cyan-100 transition-all">
           <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <input 
             type="text" 
-            placeholder="Search" 
+            placeholder="Search island..." 
             className="bg-transparent outline-none text-sm w-full placeholder-gray-500 text-gray-900"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -111,28 +112,30 @@ function HomeContent() {
         </div>
 
         <Link href={currentUser ? "/profile" : "/signup"}>
-          <div className="w-8 h-8 bg-black rounded-full text-white flex items-center justify-center text-xs font-bold">
+          <div className="w-9 h-9 bg-gradient-to-tr from-gray-900 to-gray-700 rounded-full text-white flex items-center justify-center text-sm font-bold shadow-md">
              {currentUser ? currentUser.email.charAt(0).toUpperCase() : "?"}
           </div>
         </Link>
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white py-2 px-4 border-b border-gray-200 sticky top-[60px] z-40 overflow-x-auto">
+      <div className="bg-white/60 backdrop-blur-sm py-2 px-4 sticky top-[65px] z-40 overflow-x-auto border-b border-gray-100">
         <div className="flex gap-2 whitespace-nowrap">
           {communities.map((c) => (
             <button
               key={c}
               onClick={() => setSelectedCommunity(c)}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
-                selectedCommunity === c ? "bg-black text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+                selectedCommunity === c 
+                ? "bg-black text-white scale-105" 
+                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
               }`}
             >
               {c}
             </button>
           ))}
           {!communities.includes(selectedCommunity) && selectedCommunity !== 'All' && (
-             <button className="px-4 py-1.5 rounded-full text-xs font-bold bg-black text-white">
+             <button className="px-4 py-1.5 rounded-full text-xs font-bold bg-black text-white shadow-sm">
                {selectedCommunity}
              </button>
           )}
@@ -140,17 +143,17 @@ function HomeContent() {
       </div>
 
       {/* Feed */}
-      <div className="max-w-md mx-auto md:max-w-2xl mt-4">
-        {loading && <div className="p-10 text-center text-gray-500 font-medium">Loading...</div>}
+      <div className="max-w-md mx-auto md:max-w-2xl mt-4 px-2">
+        {loading && <div className="p-10 text-center text-gray-400 font-medium">Loading island vibes...</div>}
 
         {!loading && filteredPosts.length === 0 && (
            <div className="p-10 text-center text-gray-500">
-             <div className="font-medium">No results found</div>
-             <p className="text-sm mt-1">
+             <div className="font-medium text-lg">No waves here yet 🌊</div>
+             <p className="text-sm mt-1 mb-4 text-gray-400">
                {searchQuery ? `No posts match "${searchQuery}"` : `No posts in ${selectedCommunity} yet.`}
              </p>
              <Link href="/create">
-                <button className="mt-4 bg-black text-white px-6 py-2 rounded-full font-bold text-sm">Create Post</button>
+                <button className="bg-black text-white px-6 py-2 rounded-full font-bold text-sm shadow-lg hover:scale-105 transition">Create Post</button>
              </Link>
            </div>
         )}
@@ -159,49 +162,52 @@ function HomeContent() {
           const isLiked = post.likedBy?.includes(currentUser?.uid);
           return (
             <Link href={`/post/${post.id}`} key={post.id}>
-              <div className="bg-white mb-2 border-b border-gray-200 hover:bg-gray-50 transition cursor-pointer md:rounded-md md:border">
-                <div className="px-4 pt-3 flex items-center text-xs text-gray-500 mb-2">
-                  <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center font-bold mr-2 text-[10px] text-gray-700">
+              {/* Card Design Upgrade: Rounded corners, soft shadow, hover lift */}
+              <div className="bg-white mb-3 rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all active:scale-[0.99] cursor-pointer">
+                
+                <div className="flex items-center text-xs text-gray-500 mb-2">
+                  <div className="w-6 h-6 rounded-full bg-cyan-50 text-cyan-700 flex items-center justify-center font-bold mr-2 text-[10px]">
                     {post.community ? post.community.charAt(2) : "G"}
                   </div>
                   <span className="font-bold text-gray-900 mr-1">{post.community}</span>
-                  <span className="text-gray-400 mx-1">•</span>
+                  <span className="text-gray-300 mx-1">•</span>
                   <span>{post.time}</span>
-                  <span className="text-gray-400 mx-1">•</span>
+                  <span className="text-gray-300 mx-1">•</span>
                   
-                  {/* USERNAME LINK - CLICKABLE NOW */}
                   <span 
                     onClick={(e) => handleUserClick(e, post.author)}
-                    className="hover:text-black hover:underline cursor-pointer"
+                    className="hover:text-cyan-600 hover:underline cursor-pointer font-medium"
                   >
                     u/{post.author}
                   </span>
                 </div>
 
-                <div className="px-4 pb-2">
-                  <h3 className="text-base font-bold text-gray-900 leading-snug mb-1">{post.title}</h3>
+                <div className="pb-2">
+                  <h3 className="text-base font-bold text-gray-900 leading-snug mb-1.5">{post.title}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
                   
                   {post.mediaType === 'image' && post.mediaUrl && (
-                    <div className="mb-3 rounded overflow-hidden border border-gray-100 bg-gray-100 h-48 flex items-center justify-center relative">
+                    <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 h-56 relative shadow-inner">
                       <img src={post.mediaUrl} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                   )}
                    {post.mediaType === 'link' && post.mediaUrl && (
-                    <div className="mb-3 p-3 rounded border border-gray-200 bg-gray-50 flex items-center gap-3">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                      <span className="text-blue-600 text-xs font-medium truncate">{post.mediaUrl}</span>
+                    <div className="mb-3 p-3 rounded-xl border border-gray-100 bg-cyan-50/30 flex items-center gap-3">
+                      <div className="p-2 bg-white rounded-full text-cyan-500">
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                      </div>
+                      <span className="text-cyan-700 text-xs font-bold truncate">{post.mediaUrl}</span>
                     </div>
                   )}
                 </div>
 
-                <div className="px-4 py-2 flex items-center gap-6 border-t border-gray-50 text-gray-500">
-                  <button onClick={(e) => handleLike(post, e)} className="flex items-center gap-1.5 focus:outline-none">
-                     <svg className={`w-5 h-5 ${isLiked ? "text-red-500 fill-current" : "text-gray-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
-                     <span className={`text-xs font-bold ${isLiked ? "text-red-500" : "text-gray-500"}`}>{post.votes || 0}</span>
+                <div className="flex items-center gap-6 pt-2 border-t border-gray-50">
+                  <button onClick={(e) => handleLike(post, e)} className={`flex items-center gap-1.5 px-2 py-1 rounded-full transition-colors ${isLiked ? "bg-red-50 text-red-500" : "hover:bg-gray-50 text-gray-500"}`}>
+                     <svg className={`w-5 h-5 ${isLiked ? "fill-current" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                     <span className="text-xs font-bold">{post.votes || 0}</span>
                   </button>
-                  <div className="flex items-center gap-1.5">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  <div className="flex items-center gap-1.5 text-gray-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
                     <span className="text-xs font-bold">{post.comments || 0}</span>
                   </div>
                 </div>
@@ -211,7 +217,7 @@ function HomeContent() {
         })}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex justify-between items-center z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <div className="flex flex-col items-center cursor-pointer text-black" onClick={() => {
            setSelectedCommunity("All");
            setSearchQuery("");
@@ -225,7 +231,7 @@ function HomeContent() {
           <span className="text-[10px] mt-1">Explore</span>
         </Link>
         <Link href="/create" className="flex flex-col items-center -mt-6">
-          <div className="bg-black text-white p-3 rounded-full shadow-lg hover:bg-gray-800 transition">
+          <div className="bg-black text-white p-3 rounded-full shadow-lg hover:bg-gray-800 hover:scale-105 transition">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           </div>
           <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
