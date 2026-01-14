@@ -37,7 +37,6 @@ export default function PublicProfile({ params }) {
         setProfileUser({ id: userId, ...userData });
 
         // 2. Fetch User's Posts
-        // CRITICAL FIX: Removed 'orderBy' to prevent "Index" errors that return 0 results
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
         const postsSnap = await getDocs(qPosts);
@@ -47,7 +46,7 @@ export default function PublicProfile({ params }) {
           ...doc.data()
         }));
 
-        // Sort posts client-side (Newest first)
+        // Client-side sort (Newest first)
         posts.sort((a, b) => {
            const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
            const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
@@ -74,7 +73,7 @@ export default function PublicProfile({ params }) {
     setChatLoading(true);
 
     try {
-      // 1. Check if chat already exists locally
+      // Check for existing chat
       const chatsRef = collection(db, "chats");
       const qChat = query(chatsRef, where("participants", "array-contains", currentUser.uid));
       const chatSnap = await getDocs(qChat);
@@ -92,7 +91,7 @@ export default function PublicProfile({ params }) {
         return;
       }
 
-      // 2. Create New Chat
+      // Create New Chat
       const currentUsername = currentUser.email.split('@')[0]; 
       const docRef = await addDoc(collection(db, "chats"), {
         participants: [currentUser.uid, profileUser.id],
@@ -110,16 +109,16 @@ export default function PublicProfile({ params }) {
     }
   };
 
-  if (loading) return <div className="p-10 text-center text-gray-500 text-sm">Loading Profile...</div>;
-  if (!profileUser) return <div className="p-10 text-center text-gray-500 text-sm">User not found.</div>;
+  if (loading) return <div className="p-10 text-center text-gray-400 font-medium">Loading Profile...</div>;
+  if (!profileUser) return <div className="p-10 text-center text-gray-500">User not found.</div>;
 
   const totalLikes = profilePosts.reduce((acc, post) => acc + (post.votes || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
       
-      {/* Header */}
-      <div className="bg-white px-4 py-3 border-b border-gray-200 sticky top-0 z-10 flex items-center gap-3">
+      {/* Glass Header */}
+      <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center gap-3 shadow-sm">
         <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
         </button>
@@ -129,59 +128,69 @@ export default function PublicProfile({ params }) {
       <div className="max-w-md mx-auto pt-6 px-4">
         
         {/* Profile Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center mb-6">
-          <div className="w-20 h-20 bg-black text-white rounded-full flex items-center justify-center text-3xl font-bold mb-3">
-            {profileUser.username.charAt(0).toUpperCase()}
-          </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center text-center mb-6 relative overflow-hidden">
+          {/* Decorative background blur */}
+          <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
-          <h2 className="text-xl font-black text-gray-900">u/{profileUser.username}</h2>
-          
-          <div className="flex gap-10 my-6">
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-black text-gray-900">{profilePosts.length}</span>
-              <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">Posts</span>
+          <div className="relative z-10">
+            <div className="w-24 h-24 bg-black text-white rounded-full flex items-center justify-center text-4xl font-bold mb-3 border-[4px] border-white shadow-md mx-auto">
+              {profileUser.username.charAt(0).toUpperCase()}
             </div>
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-black text-gray-900">{totalLikes}</span>
-              <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">Likes</span>
+            
+            <h2 className="text-2xl font-black text-gray-900 mb-1">u/{profileUser.username}</h2>
+            <p className="text-xs text-cyan-600 font-bold uppercase tracking-widest mb-6">CircleCayman Member</p>
+            
+            <div className="flex justify-center gap-4 mb-6 w-full">
+              <div className="flex-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                <span className="block text-xl font-black text-gray-900">{profilePosts.length}</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase">Posts</span>
+              </div>
+              <div className="flex-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                <span className="block text-xl font-black text-gray-900">{totalLikes}</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase">Karma</span>
+              </div>
             </div>
-          </div>
 
-          {/* Message Button */}
-          {currentUser?.uid !== profileUser.id && (
-            <button 
-              onClick={handleStartChat}
-              disabled={chatLoading}
-              className="flex items-center gap-2 bg-black text-white px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:opacity-80 transition"
-            >
-              {chatLoading ? "Loading..." : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                  Message
-                </>
-              )}
-            </button>
-          )}
+            {/* Message Button (Only if not viewing own profile) */}
+            {currentUser?.uid !== profileUser.id && (
+              <button 
+                onClick={handleStartChat}
+                disabled={chatLoading}
+                className="w-full bg-cyan-600 text-white py-3 rounded-xl text-sm font-bold shadow-md hover:bg-cyan-700 transition flex items-center justify-center gap-2"
+              >
+                {chatLoading ? "Loading..." : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                    Send Message
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Recent Posts Header */}
         <div className="flex items-center gap-2 mb-3 px-1">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Recent Posts</span>
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Recent Activity</span>
         </div>
 
         {/* Posts List */}
-        <div className="space-y-3">
+        <div className="space-y-3 pb-10">
           {profilePosts.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 text-sm bg-white rounded-lg border border-gray-200 border-dashed">
-              User hasn't posted anything yet.
+            <div className="text-center py-10 text-gray-400 text-sm bg-white/50 rounded-2xl border border-dashed border-gray-200">
+              No posts yet.
             </div>
           ) : (
             profilePosts.map(post => (
-              <div key={post.id} onClick={() => router.push(`/post/${post.id}`)} className="bg-white p-4 rounded-lg border border-gray-200 cursor-pointer hover:border-black transition shadow-sm">
-                <div className="text-[10px] font-bold text-gray-400 mb-1">{post.community || "c/General"}</div>
-                <h3 className="font-bold text-sm text-gray-900 mb-2 truncate">{post.title}</h3>
+              <div key={post.id} onClick={() => router.push(`/post/${post.id}`)} className="bg-white p-4 rounded-2xl border border-gray-100 cursor-pointer hover:shadow-md transition shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                   <div className="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">{post.community || "c/General"}</div>
+                   <div className="text-[10px] text-gray-400 font-bold">{post.createdAt?.toDate ? new Date(post.createdAt.toDate()).toLocaleDateString() : ''}</div>
+                </div>
+                <h3 className="font-bold text-base text-gray-900 mb-1 leading-snug">{post.title}</h3>
+                <p className="text-xs text-gray-500 line-clamp-2 mb-3">{post.body}</p>
                 
-                <div className="flex items-center gap-4 text-gray-400">
+                <div className="flex items-center gap-4 text-gray-400 border-t border-gray-50 pt-2">
                   <div className="flex items-center gap-1">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                     <span className="text-xs font-bold">{post.votes || 0}</span>
