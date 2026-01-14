@@ -98,9 +98,9 @@ function HomeContent() {
       {/* Top Nav - Glassmorphism */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-gray-100 shadow-sm">
         
-        {/* NEW LOGO BRANDING */}
+        {/* NEW TEAL LOGO */}
         <div className="flex items-center gap-2">
-           {/* Custom SVG Logo: Stylized "C" Wave */}
+           {/* Custom Wave "C" Icon */}
            <div className="w-8 h-8 text-cyan-600">
              <svg viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                <path d="M50 0C22.4 0 0 22.4 0 50C0 77.6 22.4 100 50 100C77.6 100 100 77.6 100 50H80C80 66.6 66.6 80 50 80C33.4 80 20 66.6 20 50C20 33.4 33.4 20 50 20C58.2 20 65.6 23.3 71.2 28.8L85.4 14.6C76.2 5.4 63.8 0 50 0Z" />
