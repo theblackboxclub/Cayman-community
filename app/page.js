@@ -93,12 +93,19 @@ function HomeContent() {
   });
 
   return (
-    // NEW BACKGROUND: Gradient from faint blue (sky) to white (sand)
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24"> 
       
-      {/* Top Nav - Glassmorphism Effect */}
+      {/* Top Nav - Glassmorphism */}
       <div className="bg-white/80 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-white/20 shadow-sm">
-        <div className="font-black text-xl tracking-tight text-gray-900">CaymanCircle 🌴</div>
+        
+        {/* NEW LOGO & NAME */}
+        <div className="flex items-center gap-2">
+           <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-white shadow-md">
+             {/* Custom Wave Icon */}
+             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+           </div>
+           <span className="font-black text-xl tracking-tight text-gray-900">CircleCayman</span>
+        </div>
         
         <div className="flex-1 mx-3 bg-white/50 border border-gray-200 rounded-full px-4 py-2 flex items-center focus-within:ring-2 focus-within:ring-cyan-100 transition-all">
           <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -162,7 +169,7 @@ function HomeContent() {
           const isLiked = post.likedBy?.includes(currentUser?.uid);
           return (
             <Link href={`/post/${post.id}`} key={post.id}>
-              {/* Card Design Upgrade: Rounded corners, soft shadow, hover lift */}
+              {/* Card Design */}
               <div className="bg-white mb-3 rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all active:scale-[0.99] cursor-pointer">
                 
                 <div className="flex items-center text-xs text-gray-500 mb-2">
