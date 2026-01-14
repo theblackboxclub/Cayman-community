@@ -96,22 +96,27 @@ function HomeContent() {
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24"> 
       
       {/* Top Nav - Glassmorphism */}
-      <div className="bg-white/80 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-white/20 shadow-sm">
+      <div className="bg-white/90 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-gray-100 shadow-sm">
         
-        {/* NEW LOGO & NAME */}
+        {/* NEW LOGO BRANDING */}
         <div className="flex items-center gap-2">
-           <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-white shadow-md">
-             {/* Custom Wave Icon */}
-             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+           {/* Custom SVG Logo: Stylized "C" Wave */}
+           <div className="w-8 h-8 text-cyan-600">
+             <svg viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+               <path d="M50 0C22.4 0 0 22.4 0 50C0 77.6 22.4 100 50 100C77.6 100 100 77.6 100 50H80C80 66.6 66.6 80 50 80C33.4 80 20 66.6 20 50C20 33.4 33.4 20 50 20C58.2 20 65.6 23.3 71.2 28.8L85.4 14.6C76.2 5.4 63.8 0 50 0Z" />
+               <circle cx="75" cy="50" r="10" />
+             </svg>
            </div>
-           <span className="font-black text-xl tracking-tight text-gray-900">CircleCayman</span>
+           <span className="font-black text-xl tracking-tighter text-gray-900">
+             Circle<span className="text-cyan-600">Cayman</span>
+           </span>
         </div>
         
-        <div className="flex-1 mx-3 bg-white/50 border border-gray-200 rounded-full px-4 py-2 flex items-center focus-within:ring-2 focus-within:ring-cyan-100 transition-all">
+        <div className="flex-1 mx-3 bg-gray-100 rounded-full px-4 py-2 flex items-center focus-within:ring-2 focus-within:ring-cyan-100 transition-all">
           <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <input 
             type="text" 
-            placeholder="Search island..." 
+            placeholder="Search..." 
             className="bg-transparent outline-none text-sm w-full placeholder-gray-500 text-gray-900"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -119,14 +124,14 @@ function HomeContent() {
         </div>
 
         <Link href={currentUser ? "/profile" : "/signup"}>
-          <div className="w-9 h-9 bg-gradient-to-tr from-gray-900 to-gray-700 rounded-full text-white flex items-center justify-center text-sm font-bold shadow-md">
+          <div className="w-9 h-9 bg-black rounded-full text-white flex items-center justify-center text-sm font-bold shadow-md hover:scale-105 transition">
              {currentUser ? currentUser.email.charAt(0).toUpperCase() : "?"}
           </div>
         </Link>
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white/60 backdrop-blur-sm py-2 px-4 sticky top-[65px] z-40 overflow-x-auto border-b border-gray-100">
+      <div className="bg-white/80 backdrop-blur-sm py-2 px-4 sticky top-[65px] z-40 overflow-x-auto border-b border-gray-100">
         <div className="flex gap-2 whitespace-nowrap">
           {communities.map((c) => (
             <button
@@ -134,7 +139,7 @@ function HomeContent() {
               onClick={() => setSelectedCommunity(c)}
               className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
                 selectedCommunity === c 
-                ? "bg-black text-white scale-105" 
+                ? "bg-cyan-600 text-white scale-105" 
                 : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
               }`}
             >
@@ -142,7 +147,7 @@ function HomeContent() {
             </button>
           ))}
           {!communities.includes(selectedCommunity) && selectedCommunity !== 'All' && (
-             <button className="px-4 py-1.5 rounded-full text-xs font-bold bg-black text-white shadow-sm">
+             <button className="px-4 py-1.5 rounded-full text-xs font-bold bg-cyan-600 text-white shadow-sm">
                {selectedCommunity}
              </button>
           )}
@@ -160,7 +165,7 @@ function HomeContent() {
                {searchQuery ? `No posts match "${searchQuery}"` : `No posts in ${selectedCommunity} yet.`}
              </p>
              <Link href="/create">
-                <button className="bg-black text-white px-6 py-2 rounded-full font-bold text-sm shadow-lg hover:scale-105 transition">Create Post</button>
+                <button className="bg-cyan-600 text-white px-6 py-2 rounded-full font-bold text-sm shadow-lg hover:scale-105 transition">Create Post</button>
              </Link>
            </div>
         )}
