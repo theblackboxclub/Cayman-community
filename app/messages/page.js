@@ -1,11 +1,12 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth, db } from '../../firebase'; 
+import { db, auth } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, onSnapshot, doc, updateDoc, writeBatch 
+  collection, query, where, orderBy, onSnapshot, doc, updateDoc, writeBatch 
 } from 'firebase/firestore';
+import Link from 'next/link';
 
 export default function Inbox() {
   const router = useRouter();
@@ -14,57 +15,52 @@ export default function Inbox() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       if (!currentUser) {
         router.push('/signup');
         return;
       }
       setUser(currentUser);
 
-      // FIX: Removed 'orderBy' to prevent Index Errors
       const q = query(
         collection(db, "notifications"),
-        where("toUserId", "==", currentUser.uid)
+        where("toUserId", "==", currentUser.uid),
+        orderBy("createdAt", "desc")
       );
 
-      const unsubNotes = onSnapshot(q, (snapshot) => {
-        const notes = snapshot.docs.map(doc => ({
+      const unsubscribeNotifs = onSnapshot(q, (snapshot) => {
+        const notifs = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
-        
-        // Sort explicitly in Javascript (Newest First)
-        notes.sort((a, b) => {
-           const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
-           const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
-           return timeB - timeA;
-        });
-
-        setNotifications(notes);
+        setNotifications(notifs);
         setLoading(false);
       });
 
-      return () => unsubNotes();
+      return () => unsubscribeNotifs();
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, [router]);
 
-  const handleClick = async (note) => {
-    if (!note.read) {
-      const noteRef = doc(db, "notifications", note.id);
-      await updateDoc(noteRef, { read: true });
+  const handleNotificationClick = async (notif) => {
+    try {
+      const notifRef = doc(db, "notifications", notif.id);
+      await updateDoc(notifRef, { read: true });
+    } catch (error) {
+      console.error("Error marking read:", error);
     }
-    if (note.postId) {
-      router.push(`/post/${note.postId}`);
+
+    if (notif.postId) {
+      router.push(`/post/${notif.postId}`);
     }
   };
 
-  const markAllRead = async () => {
+  const markAllAsRead = async () => {
     const batch = writeBatch(db);
-    notifications.forEach(note => {
-      if (!note.read) {
-        const ref = doc(db, "notifications", note.id);
+    notifications.forEach(n => {
+      if (!n.read) {
+        const ref = doc(db, "notifications", n.id);
         batch.update(ref, { read: true });
       }
     });
@@ -75,72 +71,106 @@ export default function Inbox() {
     if (!timestamp) return '';
     const date = timestamp.toDate();
     const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    return isToday ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString();
+    const diff = Math.floor((now - date) / 1000); 
+
+    if (diff < 60) return `${diff}s`;
+    if (diff < 3600) return `${Math.floor(diff/60)}m`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h`;
+    return `${Math.floor(diff/86400)}d`;
   };
 
-  if (loading) return <div className="p-10 text-center text-gray-500 text-sm">Loading Inbox...</div>;
-
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24">
+      
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10 px-4 py-3 flex items-center justify-between">
-         <div className="flex items-center gap-3">
-            <button onClick={() => router.push('/')} className="text-gray-500 hover:text-black">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            </button>
-            <h1 className="font-bold text-lg text-gray-900">Inbox</h1>
-         </div>
+      <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center justify-between shadow-sm">
+         <h1 className="font-black text-xl text-gray-900 tracking-tight">Inbox</h1>
          {notifications.some(n => !n.read) && (
-           <button onClick={markAllRead} className="text-xs font-bold text-blue-600 hover:underline">
+           <button onClick={markAllAsRead} className="text-xs font-bold text-cyan-600 hover:text-cyan-800 transition">
              Mark all read
            </button>
          )}
       </div>
 
-      <div className="max-w-md mx-auto">
-        {notifications.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-gray-300 mb-2">
-               <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+      <div className="max-w-md mx-auto pt-2">
+        
+        {loading && <div className="p-10 text-center text-gray-400 font-medium">Loading updates...</div>}
+
+        {!loading && notifications.length === 0 && (
+          <div className="flex flex-col items-center justify-center pt-20 px-6 text-center">
+            <div className="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mb-4 text-cyan-600">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
             </div>
-            <p className="text-gray-500 text-sm font-medium">No notifications yet.</p>
+            <h3 className="text-lg font-bold text-gray-900">All caught up!</h3>
+            <p className="text-sm text-gray-500 mt-1">When someone likes your post or replies to you, you'll see it here.</p>
           </div>
-        ) : (
-          notifications.map(note => (
-            <div 
-              key={note.id} 
-              onClick={() => handleClick(note)}
-              className={`p-4 border-b border-gray-100 cursor-pointer transition flex gap-3 ${note.read ? 'bg-white' : 'bg-blue-50'}`}
-            >
-              <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${note.read ? 'bg-transparent' : 'bg-blue-500'}`} />
-              
-              <div className="flex-1">
-                <div className="flex justify-between items-start mb-1">
-                  <div className="flex items-center gap-2">
-                    {/* Icon based on type */}
-                    {note.type === 'like' && (
-                       <svg className="w-4 h-4 text-red-500 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-                    )}
-                    {note.type === 'reply' && (
-                       <svg className="w-4 h-4 text-blue-500 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" /></svg>
-                    )}
-                    <span className="text-sm font-bold text-gray-900">u/{note.fromUser}</span>
-                  </div>
-                  <span className="text-xs text-gray-400">{formatTime(note.createdAt)}</span>
-                </div>
-                
-                <p className="text-sm text-gray-800">
-                  {note.type === 'like' ? (
-                     <span>liked your {note.contentType}.</span>
-                  ) : (
-                     <span>replied: <span className="text-gray-600">"{note.text}"</span></span>
-                  )}
-                </p>
-              </div>
-            </div>
-          ))
         )}
+
+        <div className="divide-y divide-gray-50">
+          {notifications.map((notif) => (
+            <div 
+              key={notif.id} 
+              onClick={() => handleNotificationClick(notif)}
+              className={`p-4 flex gap-3 cursor-pointer transition active:bg-gray-50 ${notif.read ? 'bg-white opacity-60' : 'bg-cyan-50/40'}`}
+            >
+              {/* Icon */}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                notif.type === 'like' ? 'bg-red-100 text-red-500' : 'bg-cyan-100 text-cyan-600'
+              }`}>
+                {notif.type === 'like' ? (
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                ) : (
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" /></svg>
+                )}
+              </div>
+
+              <div className="flex-1">
+                <p className="text-sm text-gray-900 leading-snug">
+                  <span className="font-bold">u/{notif.fromUser}</span> 
+                  {notif.type === 'like' ? ' liked your ' : ' replied to your '}
+                  {notif.contentType}.
+                </p>
+                {notif.text && (
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-1">"{notif.text}"</p>
+                )}
+                <p className="text-[10px] text-gray-400 mt-1 font-bold">{formatTime(notif.createdAt)}</p>
+              </div>
+
+              {!notif.read && (
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-cyan-500 rounded-full shadow-sm"></div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+      </div>
+
+      {/* Bottom Nav */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
+        <Link href="/" className="flex flex-col items-center text-gray-400 hover:text-black">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+          <span className="text-[10px] mt-1">Home</span>
+        </Link>
+        <Link href="/explore" className="flex flex-col items-center text-gray-400 hover:text-black">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+          <span className="text-[10px] mt-1">Explore</span>
+        </Link>
+        <Link href="/create" className="flex flex-col items-center -mt-6">
+          <div className="bg-black text-white p-3 rounded-full shadow-lg hover:bg-gray-800 hover:scale-105 transition">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          </div>
+          <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
+        </Link>
+        <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-black">
+           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+           <span className="text-[10px] mt-1">Chat</span>
+        </Link>
+        <div className="flex flex-col items-center text-black cursor-pointer">
+           <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg>
+           <span className="text-[10px] mt-1 font-bold">Inbox</span>
+        </div>
       </div>
     </div>
   );
