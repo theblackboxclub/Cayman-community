@@ -1,17 +1,28 @@
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-// FIX: Point to root firebase.js
+// Point to root firebase.js
 import { auth, db } from '../../firebase'; 
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
+// --- RANDOM USERNAME GENERATOR ---
+const generateUsername = () => {
+  const adjs = ['Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 'Royal', 'Lazy', 'Happy'];
+  const nouns = ['Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 'Pirate', 'Diver', 'Reef'];
+  
+  const adj = adjs[Math.floor(Math.random() * adjs.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(Math.random() * 1000) + 100; // 100-1099
+  
+  return `${adj}${noun}${num}`;
+};
+
 export default function AuthPage() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(false); 
+  const [isLogin, setIsLogin] = useState(true); // Default to Login now
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,17 +37,21 @@ export default function AuthPage() {
         await signInWithEmailAndPassword(auth, email, password);
         router.push('/');
       } else {
-        // --- SIGN UP ---
-        if (!username) throw new Error("Please enter a username.");
-        if (username.length < 3) throw new Error("Username must be at least 3 chars.");
+        // --- SIGN UP (AUTO USERNAME) ---
+        
+        // 1. Generate Random Name
+        const randomName = generateUsername();
 
+        // 2. Create Auth User
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        await updateProfile(user, { displayName: username });
+        // 3. Update Display Name
+        await updateProfile(user, { displayName: randomName });
 
+        // 4. Create User Document
         await setDoc(doc(db, "users", user.uid), {
-          username: username,
+          username: randomName,
           email: email,
           createdAt: serverTimestamp(),
           profilePic: null 
@@ -69,7 +84,7 @@ export default function AuthPage() {
           {isLogin ? "Welcome back" : "Join the circle"}
         </h2>
         <p className="text-sm text-gray-500 mb-6">
-          {isLogin ? "Enter your details to sign in." : "Connect with the Grand Cayman community."}
+          {isLogin ? "Enter your details to sign in." : "Sign up to get your anonymous identity."}
         </p>
 
         {error && (
@@ -79,19 +94,7 @@ export default function AuthPage() {
         )}
 
         <form onSubmit={handleAuth} className="flex flex-col gap-4">
-          {!isLogin && (
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase ml-1">Username</label>
-              <input 
-                type="text" 
-                placeholder="IslandName99" 
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-200 transition"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))} 
-              />
-            </div>
-          )}
-
+          
           <div>
             <label className="text-xs font-bold text-gray-400 uppercase ml-1">Email</label>
             <input 
@@ -114,12 +117,18 @@ export default function AuthPage() {
             />
           </div>
 
+          {!isLogin && (
+             <div className="text-xs text-center text-gray-400 bg-gray-50 p-2 rounded-lg border border-gray-100">
+               ✨ A random username (e.g. <b>SaltyIguana</b>) will be assigned to you.
+             </div>
+          )}
+
           <button 
             type="submit" 
             disabled={loading}
             className="mt-2 bg-cyan-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-cyan-700 hover:scale-[1.02] transition active:scale-95"
           >
-            {loading ? "Please wait..." : (isLogin ? "Sign In" : "Create Account")}
+            {loading ? "Please wait..." : (isLogin ? "Sign In" : "Create Anonymous Account")}
           </button>
         </form>
 
