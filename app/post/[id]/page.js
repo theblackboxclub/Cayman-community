@@ -44,7 +44,6 @@ export default function PostDetail({ params }) {
       if (docSnap.exists()) {
         setPost({ id: docSnap.id, ...docSnap.data() });
       } else {
-        // If post is deleted, it might vanish, handled by redirect usually or just showing not found
         setPost(null); 
         setLoading(false);
       }
@@ -63,7 +62,6 @@ export default function PostDetail({ params }) {
     };
   }, [id]);
 
-  // --- NOTIFICATION HELPER ---
   const sendNotification = async (toUserId, type, text, contentType) => {
     if (!user || !toUserId) return;
     if (user.uid === toUserId) return; 
@@ -85,8 +83,6 @@ export default function PostDetail({ params }) {
     }
   };
 
-  // --- ACTIONS ---
-
   const handlePostComment = async () => {
     if (!newComment.trim()) return;
     if (!user) return router.push('/signup');
@@ -104,7 +100,6 @@ export default function PostDetail({ params }) {
       });
       await updateDoc(doc(db, "posts", id), { comments: increment(1) });
       
-      // Notify Post Author
       if (post && post.userId) {
         await sendNotification(post.userId, 'reply', newComment.substring(0, 50), 'post');
       }
@@ -132,7 +127,6 @@ export default function PostDetail({ params }) {
       });
       await updateDoc(doc(db, "posts", id), { comments: increment(1) });
       
-      // Notify the person you are replying to
       await sendNotification(parentComment.userId, 'reply', replyText.substring(0, 50), 'comment');
 
       setReplyingTo(null);
@@ -167,12 +161,12 @@ export default function PostDetail({ params }) {
     }
   };
 
-  // --- DELETE ACTIONS ---
   const handleDeletePost = async () => {
-    if (!confirm("Are you sure you want to delete this post?")) return;
+    // FIX: Using window.confirm to avoid build errors
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
       await deleteDoc(doc(db, "posts", id));
-      router.push('/'); // Go back home
+      router.push('/'); 
     } catch (error) {
       console.error("Error deleting post:", error);
       alert("Could not delete post.");
@@ -180,7 +174,8 @@ export default function PostDetail({ params }) {
   };
 
   const handleDeleteComment = async (commentId) => {
-    if (!confirm("Delete this comment?")) return;
+    // FIX: Using window.confirm to avoid build errors
+    if (!window.confirm("Delete this comment?")) return;
     try {
       await deleteDoc(doc(db, "posts", id, "comments", commentId));
       await updateDoc(doc(db, "posts", id), { comments: increment(-1) });
@@ -213,7 +208,6 @@ export default function PostDetail({ params }) {
           <span className="font-bold text-lg text-gray-900">Thread</span>
         </div>
         
-        {/* DELETE POST BUTTON (If Owner) */}
         {isMyPost && (
           <button onClick={handleDeletePost} className="text-red-500 hover:bg-red-50 p-2 rounded-full">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -278,12 +272,8 @@ export default function PostDetail({ params }) {
                     <div className="flex-1">
                       <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 relative group">
                         
-                        {/* DELETE COMMENT BUTTON (On Hover) */}
                         {isMyComment && (
-                          <button 
-                             onClick={() => handleDeleteComment(comment.id)}
-                             className="absolute top-2 right-2 text-gray-300 hover:text-red-500"
-                          >
+                          <button onClick={() => handleDeleteComment(comment.id)} className="absolute top-2 right-2 text-gray-300 hover:text-red-500">
                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         )}
@@ -316,10 +306,7 @@ export default function PostDetail({ params }) {
                             <div key={reply.id} className="mb-3">
                               <div className="bg-gray-100 p-2 rounded-lg relative group">
                                 {user && reply.userId === user.uid && (
-                                   <button 
-                                      onClick={() => handleDeleteComment(reply.id)}
-                                      className="absolute top-1 right-1 text-gray-300 hover:text-red-500"
-                                   >
+                                   <button onClick={() => handleDeleteComment(reply.id)} className="absolute top-1 right-1 text-gray-300 hover:text-red-500">
                                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                    </button>
                                 )}
