@@ -1,13 +1,14 @@
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth, db } from '../firebase'; 
+// FIX: Point to root firebase.js
+import { auth, db } from '../../firebase'; 
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function AuthPage() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(false); // Toggle between Login/Signup
+  const [isLogin, setIsLogin] = useState(false); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -29,19 +30,16 @@ export default function AuthPage() {
         if (!username) throw new Error("Please enter a username.");
         if (username.length < 3) throw new Error("Username must be at least 3 chars.");
 
-        // 1. Create Auth User
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // 2. Update Display Name
         await updateProfile(user, { displayName: username });
 
-        // 3. Create User Document in Firestore
         await setDoc(doc(db, "users", user.uid), {
           username: username,
           email: email,
           createdAt: serverTimestamp(),
-          profilePic: null // Will generate random color by default
+          profilePic: null 
         });
 
         router.push('/');
@@ -89,7 +87,7 @@ export default function AuthPage() {
                 placeholder="IslandName99" 
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-200 transition"
                 value={username}
-                onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))} // No spaces
+                onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))} 
               />
             </div>
           )}
