@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { db, auth } from '../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove 
+  collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc 
 } from 'firebase/firestore';
 
 // Helper for consistent colors
@@ -22,7 +22,6 @@ const getAvatarColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
-// Map for "Generated" Community Icons
 const communityIcons = {
   "c/General": { icon: "🌴", color: "bg-teal-100 text-teal-800" },
   "c/CaymanFitness": { icon: "🏃", color: "bg-orange-100 text-orange-800" },
@@ -38,6 +37,7 @@ function HomeContent() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [dbUser, setDbUser] = useState(null); // Store Firestore User Data
   
   const initialCommunity = searchParams.get('community') || 'All';
   const initialSearch = searchParams.get('search') || '';
@@ -49,7 +49,21 @@ function HomeContent() {
   communities.unshift("All");
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => setCurrentUser(user));
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        // Fetch actual username/profile data
+        try {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setDbUser(docSnap.data());
+          }
+        } catch (e) {
+          console.error("Error fetching user details", e);
+        }
+      }
+    });
     return () => unsubscribe();
   }, []);
 
@@ -114,13 +128,17 @@ function HomeContent() {
     return matchesCommunity && matchesSearch;
   });
 
+  // Decide what to show in Header Avatar
+  const headerAvatarChar = dbUser?.username ? dbUser.username.charAt(0).toUpperCase() : (currentUser?.email?.charAt(0).toUpperCase() || "?");
+  const headerAvatarBg = dbUser?.username ? getAvatarColor(dbUser.username) : "bg-black";
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24"> 
       
-      {/* Top Nav - Glassmorphism */}
+      {/* Top Nav */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-gray-100 shadow-sm">
         
-        {/* NEW LOGO: Option 1 + Option 3 Combined */}
+        {/* LOGO */}
         <div className="flex items-center gap-2">
            <div className="w-6 h-6 rounded-full border-[5px] border-cyan-600"></div>
            <span className="font-black text-xl tracking-tighter text-gray-900">
@@ -139,9 +157,13 @@ function HomeContent() {
           />
         </div>
 
-        <Link href={currentUser ? "/profile" : "/signup"}>
-          <div className="w-9 h-9 bg-black rounded-full text-white flex items-center justify-center text-sm font-bold shadow-md hover:scale-105 transition">
-             {currentUser ? currentUser.email.charAt(0).toUpperCase() : "?"}
+        <Link href={currentUser ? `/user/${dbUser?.username || 'me'}` : "/signup"}>
+          <div className={`w-9 h-9 rounded-full text-white flex items-center justify-center text-sm font-bold shadow-md hover:scale-105 transition overflow-hidden border border-gray-200 ${headerAvatarBg}`}>
+             {dbUser?.profilePic ? (
+               <img src={dbUser.profilePic} alt="Me" className="w-full h-full object-cover" />
+             ) : (
+               headerAvatarChar
+             )}
           </div>
         </Link>
       </div>
@@ -188,13 +210,10 @@ function HomeContent() {
 
         {filteredPosts.map((post) => {
           const isLiked = post.likedBy?.includes(currentUser?.uid);
-          
-          // Get "Generated" Community Icon
           const commData = communityIcons[post.community] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
           
           return (
             <Link href={`/post/${post.id}`} key={post.id}>
-              {/* Card Design */}
               <div className="bg-white mb-3 rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all active:scale-[0.99] cursor-pointer">
                 
                 <div className="flex items-center text-xs text-gray-500 mb-2">
@@ -206,7 +225,6 @@ function HomeContent() {
                   <span>{post.time}</span>
                   <span className="text-gray-300 mx-1">•</span>
                   
-                  {/* Random Color Avatar for User */}
                   <div className={`w-4 h-4 rounded-full ml-1 mr-1 flex-shrink-0 ${getAvatarColor(post.author)}`}></div>
                   <span 
                     onClick={(e) => handleUserClick(e, post.author)}
@@ -251,6 +269,7 @@ function HomeContent() {
         })}
       </div>
 
+      {/* Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <div className="flex flex-col items-center cursor-pointer text-black" onClick={() => {
            setSelectedCommunity("All");
