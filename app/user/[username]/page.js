@@ -8,7 +8,6 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// Helper for colors
 const getAvatarColor = (name) => {
   const colors = [
     'bg-red-500', 'bg-orange-500', 'bg-amber-500', 
@@ -21,7 +20,6 @@ const getAvatarColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
-// Username Generator
 const generateRandomUsername = () => {
   const adjs = ['Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 'Royal', 'Lazy', 'Happy'];
   const nouns = ['Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 'Pirate', 'Diver', 'Reef'];
@@ -42,7 +40,6 @@ export default function PublicProfile({ params }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // States for Editing
   const [uploading, setUploading] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -67,7 +64,7 @@ export default function PublicProfile({ params }) {
         const userData = userSnap.docs[0].data();
         const userId = userSnap.docs[0].id;
         setProfileUser({ id: userId, ...userData });
-        setNewUsername(userData.username); // Init edit field
+        setNewUsername(userData.username);
 
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
@@ -132,7 +129,6 @@ export default function PublicProfile({ params }) {
     }
     
     try {
-      // 1. Check Uniqueness
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("username", "==", newUsername));
       const snap = await getDocs(q);
@@ -142,15 +138,11 @@ export default function PublicProfile({ params }) {
         return;
       }
 
-      // 2. Update
       const userRef = doc(db, "users", profileUser.id);
       await updateDoc(userRef, { username: newUsername });
       
-      // 3. Update local state
       setProfileUser(prev => ({ ...prev, username: newUsername }));
       setIsEditingName(false);
-      
-      // 4. Redirect
       router.push(`/user/${newUsername}`);
     } catch (error) {
       console.error("Error updating username:", error);
@@ -159,9 +151,7 @@ export default function PublicProfile({ params }) {
   };
 
   const handleRandomize = async () => {
-    // Generate a name and ensure it's unique (simple check)
     let randomName = generateRandomUsername();
-    // We update the input, the user still has to click "Save" which triggers the final check
     setNewUsername(randomName);
   };
 
@@ -214,7 +204,7 @@ export default function PublicProfile({ params }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
       
-      {/* Header with Logout */}
+      {/* Header */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
@@ -223,7 +213,6 @@ export default function PublicProfile({ params }) {
           <h1 className="font-bold text-lg text-gray-900">Profile</h1>
         </div>
         
-        {/* LOGOUT BUTTON */}
         {isOwner && (
           <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-full transition">
             Sign Out
@@ -238,7 +227,6 @@ export default function PublicProfile({ params }) {
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
           <div className="relative z-10 group w-full">
-            {/* Avatar */}
             <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold mb-3 border-[4px] border-white shadow-md mx-auto overflow-hidden relative ${!profileUser.profilePic ? bgColor : 'bg-white'}`}>
               {profileUser.profilePic ? (
                 <img src={profileUser.profilePic} alt={profileUser.username} className="w-full h-full object-cover" />
@@ -259,7 +247,6 @@ export default function PublicProfile({ params }) {
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
             {uploading && <p className="text-xs text-cyan-600 font-bold mb-1">Uploading...</p>}
             
-            {/* Username Section */}
             {isEditingName ? (
               <div className="flex flex-col items-center gap-2 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100 w-full">
                 <p className="text-xs text-gray-500 font-bold mb-1">Choose new username</p>
@@ -280,7 +267,7 @@ export default function PublicProfile({ params }) {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1 mb-2">
-                <h2 className="text-2xl font-black text-gray-900">u/{profileUser.username}</h2>
+                <h2 className="text-2xl font-black text-gray-900">{profileUser.username}</h2>
                 {isOwner && (
                   <button 
                     onClick={() => setIsEditingName(true)} 
@@ -329,7 +316,7 @@ export default function PublicProfile({ params }) {
             profilePosts.map(post => (
               <div key={post.id} onClick={() => router.push(`/post/${post.id}`)} className="bg-white p-4 rounded-2xl border border-gray-100 cursor-pointer hover:shadow-md transition shadow-sm">
                 <div className="flex items-center justify-between mb-2">
-                   <div className="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">{post.community || "c/General"}</div>
+                   <div className="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">{post.community?.replace('c/', '') || "General"}</div>
                    <div className="text-[10px] text-gray-400 font-bold">{post.createdAt?.toDate ? new Date(post.createdAt.toDate()).toLocaleDateString() : ''}</div>
                 </div>
                 <h3 className="font-bold text-base text-gray-900 mb-1 leading-snug">{post.title}</h3>
