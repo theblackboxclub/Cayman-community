@@ -22,13 +22,16 @@ const getAvatarColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+// Clean community name helper
+const cleanName = (name) => name?.replace('c/', '') || '';
+
 const communityIcons = {
-  "c/General": { icon: "🌴", color: "bg-teal-100 text-teal-800" },
-  "c/CaymanFitness": { icon: "🏃", color: "bg-orange-100 text-orange-800" },
-  "c/IslandJobs": { icon: "💼", color: "bg-blue-100 text-blue-800" },
-  "c/AskLocals": { icon: "🗣️", color: "bg-yellow-100 text-yellow-800" },
-  "c/Events": { icon: "🎉", color: "bg-purple-100 text-purple-800" },
-  "c/RealEstate": { icon: "🏠", color: "bg-green-100 text-green-800" },
+  "General": { icon: "🌴", color: "bg-teal-100 text-teal-800" },
+  "CaymanFitness": { icon: "🏃", color: "bg-orange-100 text-orange-800" },
+  "IslandJobs": { icon: "💼", color: "bg-blue-100 text-blue-800" },
+  "AskLocals": { icon: "🗣️", color: "bg-yellow-100 text-yellow-800" },
+  "Events": { icon: "🎉", color: "bg-purple-100 text-purple-800" },
+  "RealEstate": { icon: "🏠", color: "bg-green-100 text-green-800" },
 };
 
 function HomeContent() {
@@ -37,7 +40,7 @@ function HomeContent() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
-  const [dbUser, setDbUser] = useState(null); // Store Firestore User Data
+  const [dbUser, setDbUser] = useState(null); 
   
   const initialCommunity = searchParams.get('community') || 'All';
   const initialSearch = searchParams.get('search') || '';
@@ -52,7 +55,6 @@ function HomeContent() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        // Fetch actual username/profile data
         try {
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
@@ -121,14 +123,17 @@ function HomeContent() {
   };
 
   const filteredPosts = posts.filter(post => {
-    const matchesCommunity = selectedCommunity === 'All' || post.community === selectedCommunity;
+    // Check match after cleaning the name
+    const postComm = cleanName(post.community);
+    const selectedComm = cleanName(selectedCommunity);
+    
+    const matchesCommunity = selectedCommunity === 'All' || postComm === selectedComm;
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = post.title.toLowerCase().includes(searchLower) || 
                           post.body.toLowerCase().includes(searchLower);
     return matchesCommunity && matchesSearch;
   });
 
-  // Decide what to show in Header Avatar
   const headerAvatarChar = dbUser?.username ? dbUser.username.charAt(0).toUpperCase() : (currentUser?.email?.charAt(0).toUpperCase() || "?");
   const headerAvatarBg = dbUser?.username ? getAvatarColor(dbUser.username) : "bg-black";
 
@@ -137,8 +142,6 @@ function HomeContent() {
       
       {/* Top Nav */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-gray-100 shadow-sm">
-        
-        {/* LOGO */}
         <div className="flex items-center gap-2">
            <div className="w-6 h-6 rounded-full border-[5px] border-cyan-600"></div>
            <span className="font-black text-xl tracking-tighter text-gray-900">
@@ -184,11 +187,6 @@ function HomeContent() {
               {c}
             </button>
           ))}
-          {!communities.includes(selectedCommunity) && selectedCommunity !== 'All' && (
-             <button className="px-4 py-1.5 rounded-full text-xs font-bold bg-cyan-600 text-white shadow-sm">
-               {selectedCommunity}
-             </button>
-          )}
         </div>
       </div>
 
@@ -200,7 +198,7 @@ function HomeContent() {
            <div className="p-10 text-center text-gray-500">
              <div className="font-medium text-lg">No waves here yet 🌊</div>
              <p className="text-sm mt-1 mb-4 text-gray-400">
-               {searchQuery ? `No posts match "${searchQuery}"` : `No posts in ${selectedCommunity} yet.`}
+               {searchQuery ? `No posts match "${searchQuery}"` : `No posts in ${cleanName(selectedCommunity)} yet.`}
              </p>
              <Link href="/create">
                 <button className="bg-cyan-600 text-white px-6 py-2 rounded-full font-bold text-sm shadow-lg hover:scale-105 transition">Create Post</button>
@@ -210,7 +208,9 @@ function HomeContent() {
 
         {filteredPosts.map((post) => {
           const isLiked = post.likedBy?.includes(currentUser?.uid);
-          const commData = communityIcons[post.community] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
+          // Strip prefix for lookup
+          const commName = cleanName(post.community);
+          const commData = communityIcons[commName] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
           
           return (
             <Link href={`/post/${post.id}`} key={post.id}>
@@ -220,7 +220,7 @@ function HomeContent() {
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold mr-2 text-[12px] ${commData.color}`}>
                     {commData.icon}
                   </div>
-                  <span className="font-bold text-gray-900 mr-1">{post.community}</span>
+                  <span className="font-bold text-gray-900 mr-1">{commName}</span>
                   <span className="text-gray-300 mx-1">•</span>
                   <span>{post.time}</span>
                   <span className="text-gray-300 mx-1">•</span>
@@ -230,7 +230,7 @@ function HomeContent() {
                     onClick={(e) => handleUserClick(e, post.author)}
                     className="hover:text-cyan-600 hover:underline cursor-pointer font-medium text-gray-700"
                   >
-                    u/{post.author}
+                    {post.author}
                   </span>
                 </div>
 
@@ -269,7 +269,6 @@ function HomeContent() {
         })}
       </div>
 
-      {/* Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <div className="flex flex-col items-center cursor-pointer text-black" onClick={() => {
            setSelectedCommunity("All");
