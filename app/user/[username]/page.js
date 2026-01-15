@@ -8,7 +8,9 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
+// Helper for colors - SAFE VERSION
 const getAvatarColor = (name) => {
+  if (!name) return 'bg-gray-400'; // Prevent crash if name is missing
   const colors = [
     'bg-red-500', 'bg-orange-500', 'bg-amber-500', 
     'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 
@@ -31,7 +33,10 @@ const generateRandomUsername = () => {
 
 export default function PublicProfile({ params }) {
   const router = useRouter();
-  const profileUsername = decodeURIComponent(params.username);
+  
+  // Safe decoding
+  const rawUsername = params?.username;
+  const profileUsername = rawUsername ? decodeURIComponent(rawUsername) : null;
   
   const [profileUser, setProfileUser] = useState(null);
   const [profilePosts, setProfilePosts] = useState([]);
@@ -42,10 +47,16 @@ export default function PublicProfile({ params }) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
   
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    if (!profileUsername) {
+        setLoading(false);
+        return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       
@@ -62,7 +73,7 @@ export default function PublicProfile({ params }) {
         const userData = userSnap.docs[0].data();
         const userId = userSnap.docs[0].id;
         setProfileUser({ id: userId, ...userData });
-        setNewUsername(userData.username);
+        setNewUsername(userData.username || "");
 
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
@@ -155,8 +166,10 @@ export default function PublicProfile({ params }) {
 
   const handleStartChat = async () => {
     if (!currentUser) return router.push('/signup');
+    setChatLoading(true);
+    
     try {
-      // 1. Check if chat already exists
+      // 1. Check if chat exists
       const chatsRef = collection(db, "chats");
       const qChat = query(chatsRef, where("participants", "array-contains", currentUser.uid));
       const chatSnap = await getDocs(qChat);
@@ -170,15 +183,15 @@ export default function PublicProfile({ params }) {
       });
 
       if (existingChatId) {
-        // Chat exists -> Go to it
         router.push(`/chat/${existingChatId}`);
       } else {
-        // Chat DOES NOT exist -> Go to 'new' staging area
-        // We pass the target user's ID and Name in the URL
+        // Go to new chat draft page
         router.push(`/chat/new?uid=${profileUser.id}&name=${encodeURIComponent(profileUser.username)}`);
       }
     } catch (error) {
       console.error("Error starting chat:", error);
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -217,11 +230,12 @@ export default function PublicProfile({ params }) {
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
           <div className="relative z-10 group w-full">
+            {/* Avatar */}
             <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold mb-3 border-[4px] border-white shadow-md mx-auto overflow-hidden relative ${!profileUser.profilePic ? bgColor : 'bg-white'}`}>
               {profileUser.profilePic ? (
                 <img src={profileUser.profilePic} alt={profileUser.username} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-white">{profileUser.username.charAt(0).toUpperCase()}</span>
+                <span className="text-white">{profileUser.username?.charAt(0).toUpperCase() || "?"}</span>
               )}
               {isOwner && (
                 <div onClick={() => fileInputRef.current?.click()} className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
@@ -232,6 +246,7 @@ export default function PublicProfile({ params }) {
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
             {uploading && <p className="text-xs text-cyan-600 font-bold mb-1">Uploading...</p>}
             
+            {/* Edit Username */}
             {isEditingName ? (
               <div className="flex flex-col items-center gap-2 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100 w-full">
                 <input type="text" className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-center font-bold text-gray-900 outline-none w-full mb-2" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="Enter name" />
@@ -273,6 +288,10 @@ export default function PublicProfile({ params }) {
         <div className="space-y-3 pb-10">
           {profilePosts.map(post => (
             <div key={post.id} onClick={() => router.push(`/post/${post.id}`)} className="bg-white p-4 rounded-2xl border border-gray-100 cursor-pointer hover:shadow-md transition shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                   <div className="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">{post.community?.replace('c/', '') || "General"}</div>
+                   <div className="text-[10px] text-gray-400 font-bold">{post.createdAt?.toDate ? new Date(post.createdAt.toDate()).toLocaleDateString() : ''}</div>
+                </div>
                 <h3 className="font-bold text-base text-gray-900 mb-1">{post.title}</h3>
                 <p className="text-xs text-gray-500 line-clamp-2">{post.body}</p>
             </div>
