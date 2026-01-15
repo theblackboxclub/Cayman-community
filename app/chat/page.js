@@ -111,7 +111,7 @@ export default function ChatList() {
            <h1 className="font-black text-xl text-gray-900 tracking-tight">Messages</h1>
            {activeTab === 'dms' ? (
              <button onClick={() => setIsCreatingDM(!isCreatingDM)} className="bg-black text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md">
-               + DM
+               + New Message
              </button>
            ) : (
              <Link href="/chat/create">
