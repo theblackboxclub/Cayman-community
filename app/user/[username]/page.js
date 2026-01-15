@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { auth, db, storage } from '../../../firebase'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { 
-  collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc 
+  collection, query, where, getDocs, doc, updateDoc 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -23,11 +23,9 @@ const getAvatarColor = (name) => {
 const generateRandomUsername = () => {
   const adjs = ['Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 'Royal', 'Lazy', 'Happy'];
   const nouns = ['Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 'Pirate', 'Diver', 'Reef'];
-  
   const adj = adjs[Math.floor(Math.random() * adjs.length)];
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
   const num = Math.floor(Math.random() * 1000) + 100;
-  
   return `${adj}${noun}${num}`;
 };
 
@@ -158,6 +156,7 @@ export default function PublicProfile({ params }) {
   const handleStartChat = async () => {
     if (!currentUser) return router.push('/signup');
     try {
+      // 1. Check if chat already exists
       const chatsRef = collection(db, "chats");
       const qChat = query(chatsRef, where("participants", "array-contains", currentUser.uid));
       const chatSnap = await getDocs(qChat);
@@ -171,19 +170,13 @@ export default function PublicProfile({ params }) {
       });
 
       if (existingChatId) {
+        // Chat exists -> Go to it
         router.push(`/chat/${existingChatId}`);
-        return;
+      } else {
+        // Chat DOES NOT exist -> Go to 'new' staging area
+        // We pass the target user's ID and Name in the URL
+        router.push(`/chat/new?uid=${profileUser.id}&name=${encodeURIComponent(profileUser.username)}`);
       }
-
-      const currentUsername = currentUser.email.split('@')[0]; 
-      const docRef = await addDoc(collection(db, "chats"), {
-        participants: [currentUser.uid, profileUser.id],
-        participantNames: [currentUsername, profileUser.username],
-        lastMessage: "Chat started",
-        lastUpdated: serverTimestamp()
-      });
-
-      router.push(`/chat/${docRef.id}`);
     } catch (error) {
       console.error("Error starting chat:", error);
     }
@@ -212,11 +205,8 @@ export default function PublicProfile({ params }) {
           </button>
           <h1 className="font-bold text-lg text-gray-900">Profile</h1>
         </div>
-        
         {isOwner && (
-          <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-full transition">
-            Sign Out
-          </button>
+          <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-full transition">Sign Out</button>
         )}
       </div>
 
@@ -233,49 +223,29 @@ export default function PublicProfile({ params }) {
               ) : (
                 <span className="text-white">{profileUser.username.charAt(0).toUpperCase()}</span>
               )}
-
               {isOwner && (
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer"
-                >
+                <div onClick={() => fileInputRef.current?.click()} className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </div>
               )}
             </div>
-
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
             {uploading && <p className="text-xs text-cyan-600 font-bold mb-1">Uploading...</p>}
             
             {isEditingName ? (
               <div className="flex flex-col items-center gap-2 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100 w-full">
-                <p className="text-xs text-gray-500 font-bold mb-1">Choose new username</p>
-                <input 
-                  type="text" 
-                  className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-center font-bold text-gray-900 outline-none focus:ring-2 focus:ring-cyan-100 w-full mb-2"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
-                  placeholder="Enter name"
-                />
+                <input type="text" className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-center font-bold text-gray-900 outline-none w-full mb-2" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="Enter name" />
                 {saveError && <p className="text-xs text-red-500 font-bold mb-2">{saveError}</p>}
-                
                 <div className="flex gap-2 w-full">
-                  <button onClick={handleRandomize} className="flex-1 bg-cyan-100 text-cyan-700 py-2 rounded-lg text-xs font-bold hover:bg-cyan-200">Random 🎲</button>
-                  <button onClick={handleUsernameSave} className="flex-1 bg-black text-white py-2 rounded-lg text-xs font-bold hover:bg-gray-800">Save</button>
+                  <button onClick={handleRandomize} className="flex-1 bg-cyan-100 text-cyan-700 py-2 rounded-lg text-xs font-bold">Random 🎲</button>
+                  <button onClick={handleUsernameSave} className="flex-1 bg-black text-white py-2 rounded-lg text-xs font-bold">Save</button>
                 </div>
-                <button onClick={() => {setIsEditingName(false); setSaveError('');}} className="mt-2 text-xs font-bold text-gray-400 hover:text-gray-600">Cancel</button>
+                <button onClick={() => {setIsEditingName(false); setSaveError('');}} className="mt-2 text-xs font-bold text-gray-400">Cancel</button>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1 mb-2">
                 <h2 className="text-2xl font-black text-gray-900">{profileUser.username}</h2>
-                {isOwner && (
-                  <button 
-                    onClick={() => setIsEditingName(true)} 
-                    className="text-xs font-bold text-cyan-600 hover:text-cyan-800 bg-cyan-50 px-3 py-1 rounded-full mt-1"
-                  >
-                    Change Username
-                  </button>
-                )}
+                {isOwner && <button onClick={() => setIsEditingName(true)} className="text-xs font-bold text-cyan-600 hover:text-cyan-800 bg-cyan-50 px-3 py-1 rounded-full mt-1">Change Username</button>}
               </div>
             )}
             
@@ -293,44 +263,21 @@ export default function PublicProfile({ params }) {
             </div>
 
             {!isOwner && (
-              <button 
-                onClick={handleStartChat}
-                className="w-full bg-cyan-600 text-white py-3 rounded-xl text-sm font-bold shadow-md hover:bg-cyan-700 transition flex items-center justify-center gap-2"
-              >
-                Send Message
+              <button onClick={handleStartChat} disabled={chatLoading} className="w-full bg-cyan-600 text-white py-3 rounded-xl text-sm font-bold shadow-md hover:bg-cyan-700 transition flex items-center justify-center gap-2">
+                {chatLoading ? "Loading..." : "Send Message"}
               </button>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-3 px-1">
-          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Recent Activity</span>
-        </div>
-
         <div className="space-y-3 pb-10">
-          {profilePosts.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 text-sm bg-white/50 rounded-2xl border border-dashed border-gray-200">
-              No posts yet.
+          {profilePosts.map(post => (
+            <div key={post.id} onClick={() => router.push(`/post/${post.id}`)} className="bg-white p-4 rounded-2xl border border-gray-100 cursor-pointer hover:shadow-md transition shadow-sm">
+                <h3 className="font-bold text-base text-gray-900 mb-1">{post.title}</h3>
+                <p className="text-xs text-gray-500 line-clamp-2">{post.body}</p>
             </div>
-          ) : (
-            profilePosts.map(post => (
-              <div key={post.id} onClick={() => router.push(`/post/${post.id}`)} className="bg-white p-4 rounded-2xl border border-gray-100 cursor-pointer hover:shadow-md transition shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                   <div className="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">{post.community?.replace('c/', '') || "General"}</div>
-                   <div className="text-[10px] text-gray-400 font-bold">{post.createdAt?.toDate ? new Date(post.createdAt.toDate()).toLocaleDateString() : ''}</div>
-                </div>
-                <h3 className="font-bold text-base text-gray-900 mb-1 leading-snug">{post.title}</h3>
-                <p className="text-xs text-gray-500 line-clamp-2 mb-3">{post.body}</p>
-                
-                <div className="flex items-center gap-4 text-gray-400 border-t border-gray-50 pt-2">
-                  <span className="text-xs font-bold flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg> {post.votes || 0}</span>
-                  <span className="text-xs font-bold flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg> {post.comments || 0}</span>
-                </div>
-              </div>
-            ))
-          )}
+          ))}
         </div>
-
       </div>
     </div>
   );
