@@ -46,6 +46,7 @@ export default function PublicProfile({ params }) {
   const [uploading, setUploading] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newUsername, setNewUsername] = useState('');
+  const [saveError, setSaveError] = useState('');
   
   const fileInputRef = useRef(null);
 
@@ -119,26 +120,49 @@ export default function PublicProfile({ params }) {
   };
 
   const handleUsernameSave = async () => {
-    if (!newUsername.trim() || newUsername.length < 3) return alert("Username too short.");
+    setSaveError('');
+    if (!newUsername.trim() || newUsername.length < 3) {
+      setSaveError("Too short (min 3 chars).");
+      return;
+    }
+
+    if (newUsername === profileUser.username) {
+      setIsEditingName(false);
+      return;
+    }
     
     try {
+      // 1. Check Uniqueness
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("username", "==", newUsername));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        setSaveError("Username already taken.");
+        return;
+      }
+
+      // 2. Update
       const userRef = doc(db, "users", profileUser.id);
       await updateDoc(userRef, { username: newUsername });
       
-      // Update local state and turn off edit mode
+      // 3. Update local state
       setProfileUser(prev => ({ ...prev, username: newUsername }));
       setIsEditingName(false);
       
-      // Redirect to new URL because URL depends on username
+      // 4. Redirect
       router.push(`/user/${newUsername}`);
     } catch (error) {
       console.error("Error updating username:", error);
-      alert("Failed to update username.");
+      setSaveError("Failed to update.");
     }
   };
 
-  const handleRandomize = () => {
-    setNewUsername(generateRandomUsername());
+  const handleRandomize = async () => {
+    // Generate a name and ensure it's unique (simple check)
+    let randomName = generateRandomUsername();
+    // We update the input, the user still has to click "Save" which triggers the final check
+    setNewUsername(randomName);
   };
 
   const handleStartChat = async () => {
@@ -190,7 +214,7 @@ export default function PublicProfile({ params }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
       
-      {/* Header */}
+      {/* Header with Logout */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
@@ -199,6 +223,7 @@ export default function PublicProfile({ params }) {
           <h1 className="font-bold text-lg text-gray-900">Profile</h1>
         </div>
         
+        {/* LOGOUT BUTTON */}
         {isOwner && (
           <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-full transition">
             Sign Out
@@ -236,25 +261,32 @@ export default function PublicProfile({ params }) {
             
             {/* Username Section */}
             {isEditingName ? (
-              <div className="flex flex-col items-center gap-2 mb-4">
+              <div className="flex flex-col items-center gap-2 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100 w-full">
+                <p className="text-xs text-gray-500 font-bold mb-1">Choose new username</p>
                 <input 
                   type="text" 
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1 text-center font-bold text-gray-900 outline-none focus:ring-2 focus:ring-cyan-100 w-full"
+                  className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-center font-bold text-gray-900 outline-none focus:ring-2 focus:ring-cyan-100 w-full mb-2"
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="Enter name"
                 />
+                {saveError && <p className="text-xs text-red-500 font-bold mb-2">{saveError}</p>}
+                
                 <div className="flex gap-2 w-full">
-                  <button onClick={handleRandomize} className="flex-1 bg-cyan-100 text-cyan-700 py-1.5 rounded-lg text-xs font-bold">Randomize 🎲</button>
-                  <button onClick={handleUsernameSave} className="flex-1 bg-black text-white py-1.5 rounded-lg text-xs font-bold">Save</button>
-                  <button onClick={() => setIsEditingName(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-400">Cancel</button>
+                  <button onClick={handleRandomize} className="flex-1 bg-cyan-100 text-cyan-700 py-2 rounded-lg text-xs font-bold hover:bg-cyan-200">Random 🎲</button>
+                  <button onClick={handleUsernameSave} className="flex-1 bg-black text-white py-2 rounded-lg text-xs font-bold hover:bg-gray-800">Save</button>
                 </div>
+                <button onClick={() => {setIsEditingName(false); setSaveError('');}} className="mt-2 text-xs font-bold text-gray-400 hover:text-gray-600">Cancel</button>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2 mb-1">
+              <div className="flex flex-col items-center gap-1 mb-2">
                 <h2 className="text-2xl font-black text-gray-900">u/{profileUser.username}</h2>
                 {isOwner && (
-                  <button onClick={() => setIsEditingName(true)} className="text-gray-400 hover:text-cyan-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  <button 
+                    onClick={() => setIsEditingName(true)} 
+                    className="text-xs font-bold text-cyan-600 hover:text-cyan-800 bg-cyan-50 px-3 py-1 rounded-full mt-1"
+                  >
+                    Change Username
                   </button>
                 )}
               </div>
