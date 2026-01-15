@@ -4,9 +4,19 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, orderBy 
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, orderBy, doc, setDoc, getDoc 
 } from 'firebase/firestore';
 import Link from 'next/link';
+
+// Official Communities List
+const officialCommunities = [
+  { id: "official_General", name: "General", desc: "Main island discussion" },
+  { id: "official_CaymanFitness", name: "CaymanFitness", desc: "Gym & Run clubs" },
+  { id: "official_IslandJobs", name: "IslandJobs", desc: "Work & Careers" },
+  { id: "official_AskLocals", name: "AskLocals", desc: "Q&A for residents" },
+  { id: "official_Events", name: "Events", desc: "Parties & Gatherings" },
+  { id: "official_RealEstate", name: "RealEstate", desc: "Housing market" }
+];
 
 export default function ChatList() {
   const router = useRouter();
@@ -19,12 +29,41 @@ export default function ChatList() {
   const [newChatUsername, setNewChatUsername] = useState('');
   const [searchError, setSearchError] = useState('');
 
+  // 1. Initialize Official Groups (Runs once on load)
+  useEffect(() => {
+    const initOfficialGroups = async () => {
+      for (const comm of officialCommunities) {
+        const docRef = doc(db, "groups", comm.id);
+        const docSnap = await getDoc(docRef);
+        
+        if (!docSnap.exists()) {
+          // Create if doesn't exist
+          await setDoc(docRef, {
+            name: comm.name,
+            description: comm.desc,
+            isPublic: true,
+            creatorId: "system",
+            admins: [],
+            members: [],
+            memberCount: 0,
+            createdAt: serverTimestamp(),
+            lastUpdated: serverTimestamp(),
+            isOfficial: true // Mark as official
+          });
+          console.log(`Created official group: ${comm.name}`);
+        }
+      }
+    };
+    
+    initOfficialGroups();
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!currentUser) return router.push('/signup');
       setUser(currentUser);
 
-      // 1. Listen for DMs
+      // 2. Listen for DMs
       const qDMs = query(
         collection(db, "chats"),
         where("participants", "array-contains", currentUser.uid)
@@ -32,17 +71,23 @@ export default function ChatList() {
 
       const unsubDMs = onSnapshot(qDMs, (snapshot) => {
         const dmData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Client-side sort
+        // Sort by last updated
         dmData.sort((a, b) => (b.lastUpdated?.toMillis() || 0) - (a.lastUpdated?.toMillis() || 0));
         setChats(dmData);
         setLoading(false);
       });
 
-      // 2. Listen for Groups (All Groups are visible)
+      // 3. Listen for Groups
       const qGroups = query(collection(db, "groups"), orderBy("memberCount", "desc"));
       
       const unsubGroups = onSnapshot(qGroups, (snapshot) => {
         const groupData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Sort so Official ones are likely top, then by members
+        groupData.sort((a, b) => {
+            if (a.isOfficial && !b.isOfficial) return -1;
+            if (!a.isOfficial && b.isOfficial) return 1;
+            return (b.memberCount || 0) - (a.memberCount || 0);
+        });
         setGroups(groupData);
       });
 
@@ -185,22 +230,27 @@ export default function ChatList() {
         ) : (
           // --- GROUP LIST ---
           groups.length === 0 ? (
-            <div className="text-center py-20 text-gray-400 text-sm">No communities created yet. Be the first!</div>
+            <div className="text-center py-20 text-gray-400 text-sm">Loading communities...</div>
           ) : (
             groups.map(group => (
               <Link key={group.id} href={`/group/${group.id}`}>
-                <div className="p-4 border-b border-gray-50 hover:bg-white/60 transition cursor-pointer flex gap-3">
-                  <div className={`w-12 h-12 rounded-xl shadow-sm flex items-center justify-center font-bold text-lg ${group.isPublic ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {group.isPublic ? '#' : '🔒'}
+                <div className="p-4 border-b border-gray-50 hover:bg-white/60 transition cursor-pointer flex gap-3 items-center">
+                  <div className={`w-12 h-12 rounded-xl shadow-sm flex items-center justify-center font-bold text-lg flex-shrink-0 ${group.isOfficial ? 'bg-black text-white' : group.isPublic ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {group.isOfficial ? '★' : (group.isPublic ? '#' : '🔒')}
                   </div>
-                  <div className="flex-1 pt-1">
+                  <div className="flex-1 pt-1 min-w-0">
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm font-black text-gray-900">{group.name}</span>
-                      <span className="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded-full text-gray-500">
-                        {group.memberCount || 0} members
+                      <div className="flex items-center gap-1.5 overflow-hidden">
+                        <span className="text-sm font-black text-gray-900 truncate">{group.name}</span>
+                        {group.isOfficial && (
+                          <svg className="w-3 h-3 text-cyan-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded-full text-gray-500 flex-shrink-0">
+                        {group.memberCount || 0}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 line-clamp-1">{group.description}</p>
+                    <p className="text-xs text-gray-500 truncate">{group.description}</p>
                   </div>
                 </div>
               </Link>
