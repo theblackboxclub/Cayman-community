@@ -1,17 +1,16 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { db } from '../../firebase'; 
-import { collection, query, getDocs, limit } from 'firebase/firestore';
 
 export default function Explore() {
+  // Removed 'c/' prefixes from names
   const [communities, setCommunities] = useState([
-    { name: "c/General", members: 120, desc: "General island talk." },
-    { name: "c/CaymanFitness", members: 85, desc: "Gyms, running clubs, and yoga." },
-    { name: "c/IslandJobs", members: 340, desc: "Who is hiring right now?" },
-    { name: "c/AskLocals", members: 210, desc: "Questions about life on rock." },
-    { name: "c/Events", members: 150, desc: "What's happening this weekend?" },
-    { name: "c/RealEstate", members: 95, desc: "Rentals and sales." },
+    { name: "General", members: 120, desc: "General island talk.", icon: "🌴", color: "bg-teal-100 text-teal-800" },
+    { name: "CaymanFitness", members: 85, desc: "Gyms, running clubs, and yoga.", icon: "🏃", color: "bg-orange-100 text-orange-800" },
+    { name: "IslandJobs", members: 340, desc: "Who is hiring right now?", icon: "💼", color: "bg-blue-100 text-blue-800" },
+    { name: "AskLocals", members: 210, desc: "Questions about life on rock.", icon: "🗣️", color: "bg-yellow-100 text-yellow-800" },
+    { name: "Events", members: 150, desc: "What's happening this weekend?", icon: "🎉", color: "bg-purple-100 text-purple-800" },
+    { name: "RealEstate", members: 95, desc: "Rentals and sales.", icon: "🏠", color: "bg-green-100 text-green-800" },
   ]);
 
   return (
@@ -41,11 +40,12 @@ export default function Explore() {
         
         <div className="grid gap-3">
           {communities.map((c) => (
+            // Passing clean name to URL
             <Link href={`/?community=${c.name}`} key={c.name}>
               <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition active:scale-[0.99]">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center font-bold text-sm">
-                    {c.name.charAt(2)}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${c.color}`}>
+                    {c.icon}
                   </div>
                   <div>
                     <h3 className="font-bold text-gray-900 text-sm">{c.name}</h3>
