@@ -4,55 +4,58 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs 
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, orderBy 
 } from 'firebase/firestore';
 import Link from 'next/link';
 
 export default function ChatList() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState('dms'); // 'dms' or 'groups'
   const [chats, setChats] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingDM, setIsCreatingDM] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
   const [searchError, setSearchError] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) {
-        router.push('/signup');
-        return;
-      }
+      if (!currentUser) return router.push('/signup');
       setUser(currentUser);
 
-      const q = query(
+      // 1. Listen for DMs
+      const qDMs = query(
         collection(db, "chats"),
         where("participants", "array-contains", currentUser.uid)
       );
 
-      const unsubChats = onSnapshot(q, (snapshot) => {
-        const chatData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-        chatData.sort((a, b) => {
-           const timeA = a.lastUpdated?.toDate ? a.lastUpdated.toDate() : new Date(0);
-           const timeB = b.lastUpdated?.toDate ? b.lastUpdated.toDate() : new Date(0);
-           return timeB - timeA;
-        });
-
-        setChats(chatData);
+      const unsubDMs = onSnapshot(qDMs, (snapshot) => {
+        const dmData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Client-side sort
+        dmData.sort((a, b) => (b.lastUpdated?.toMillis() || 0) - (a.lastUpdated?.toMillis() || 0));
+        setChats(dmData);
         setLoading(false);
       });
 
-      return () => unsubChats();
+      // 2. Listen for Groups (All Groups are visible)
+      const qGroups = query(collection(db, "groups"), orderBy("memberCount", "desc"));
+      
+      const unsubGroups = onSnapshot(qGroups, (snapshot) => {
+        const groupData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setGroups(groupData);
+      });
+
+      return () => {
+        unsubDMs();
+        unsubGroups();
+      };
     });
 
     return () => unsubscribe();
   }, [router]);
 
-  const handleStartChat = async () => {
+  const handleStartDM = async () => {
     setSearchError('');
     if (!newChatUsername.trim()) return;
 
@@ -73,6 +76,7 @@ export default function ChatList() {
       return;
     }
 
+    // Check existing DM
     const existingChat = chats.find(c => c.participants.includes(recipientId));
     if (existingChat) {
       router.push(`/chat/${existingChat.id}`);
@@ -82,7 +86,7 @@ export default function ChatList() {
     try {
       const docRef = await addDoc(collection(db, "chats"), {
         participants: [user.uid, recipientId],
-        participantNames: [user.email.split('@')[0], recipient.username], 
+        participantNames: [user.displayName || "User", recipient.username], 
         lastMessage: "Chat started",
         lastUpdated: serverTimestamp()
       });
@@ -94,85 +98,114 @@ export default function ChatList() {
 
   const getOtherParticipantName = (chat) => {
     if (!chat.participantNames) return "Unknown";
-    return chat.participantNames.find(name => name !== user.email.split('@')[0]) || "Chat";
+    return chat.participantNames.find(name => name !== (user?.displayName || "")) || "Chat";
   };
 
-  if (loading) return <div className="p-10 text-center text-gray-400 text-sm">Loading Chats...</div>;
+  if (loading) return <div className="p-10 text-center text-gray-400 text-sm">Loading...</div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24">
       {/* Header */}
-      <div className="bg-white/90 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10 px-4 py-3 flex items-center justify-between shadow-sm">
-         <h1 className="font-black text-xl text-gray-900 tracking-tight">Messages</h1>
-         <button 
-           onClick={() => setIsCreating(!isCreating)} 
-           className="bg-cyan-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md hover:bg-cyan-700 transition"
-         >
-           + New Chat
-         </button>
+      <div className="bg-white/90 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10 px-4 py-3 flex flex-col gap-3 shadow-sm">
+         <div className="flex justify-between items-center">
+           <h1 className="font-black text-xl text-gray-900 tracking-tight">Messages</h1>
+           {activeTab === 'dms' ? (
+             <button onClick={() => setIsCreatingDM(!isCreatingDM)} className="bg-black text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md">
+               + DM
+             </button>
+           ) : (
+             <Link href="/chat/create">
+               <button className="bg-cyan-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md">
+                 + Create Group
+               </button>
+             </Link>
+           )}
+         </div>
+
+         {/* Tabs */}
+         <div className="flex bg-gray-100 p-1 rounded-xl">
+           <button 
+             onClick={() => setActiveTab('dms')}
+             className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${activeTab === 'dms' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
+           >
+             Inbox
+           </button>
+           <button 
+             onClick={() => setActiveTab('groups')}
+             className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${activeTab === 'groups' ? 'bg-white shadow-sm text-cyan-600' : 'text-gray-500'}`}
+           >
+             Communities
+           </button>
+         </div>
       </div>
 
       <div className="max-w-md mx-auto">
         
-        {/* New Chat Input */}
-        {isCreating && (
-          <div className="p-4 bg-white/50 border-b border-gray-100 backdrop-blur-sm">
-            <p className="text-xs font-bold text-gray-500 mb-2">Who do you want to message?</p>
+        {/* DM CREATE INPUT */}
+        {activeTab === 'dms' && isCreatingDM && (
+          <div className="p-4 bg-white/50 border-b border-gray-100 backdrop-blur-sm animate-fade-in">
+            <p className="text-xs font-bold text-gray-500 mb-2">Who to message?</p>
             <div className="flex gap-2">
               <input 
                 type="text" 
-                placeholder="Username (e.g. SaltyIguana99)" 
+                placeholder="Username..." 
                 className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-100"
                 value={newChatUsername}
                 onChange={(e) => setNewChatUsername(e.target.value)}
               />
-              <button onClick={handleStartChat} className="bg-black text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">Go</button>
+              <button onClick={handleStartDM} className="bg-black text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">Go</button>
             </div>
             {searchError && <p className="text-xs text-red-500 mt-2 font-bold">{searchError}</p>}
           </div>
         )}
 
-        {/* Chat List */}
-        {chats.length === 0 ? (
-          <div className="text-center py-20">
-             <div className="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4 text-cyan-600">
-               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-             </div>
-             <p className="text-gray-500 text-sm font-medium">No messages yet.</p>
-          </div>
-        ) : (
-          chats.map(chat => {
-            const unreadCount = chat[`unreadCount_${user.uid}`] || 0;
-            const isUnread = unreadCount > 0;
-
-            return (
+        {/* LIST CONTENT */}
+        {activeTab === 'dms' ? (
+          // --- DM LIST ---
+          chats.length === 0 ? (
+            <div className="text-center py-20 text-gray-400 text-sm">No direct messages yet.</div>
+          ) : (
+            chats.map(chat => (
               <Link key={chat.id} href={`/chat/${chat.id}`}>
-                <div className={`p-4 border-b border-gray-50 hover:bg-white/60 transition cursor-pointer flex gap-3 ${isUnread ? 'bg-cyan-50/50' : 'bg-transparent'}`}>
-                  <div className="w-12 h-12 bg-white border border-gray-100 shadow-sm rounded-full flex items-center justify-center font-bold text-gray-700 text-sm relative">
+                <div className="p-4 border-b border-gray-50 hover:bg-white/60 transition cursor-pointer flex gap-3">
+                  <div className="w-12 h-12 bg-white border border-gray-100 shadow-sm rounded-full flex items-center justify-center font-bold text-gray-700 text-sm">
                     {getOtherParticipantName(chat).charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 pt-1">
                     <div className="flex justify-between items-center mb-1">
-                      <span className={`text-sm ${isUnread ? 'font-black text-gray-900' : 'font-bold text-gray-700'}`}>
-                        {getOtherParticipantName(chat)}
-                      </span>
-                      <span className={`text-[10px] font-bold ${isUnread ? 'text-cyan-600' : 'text-gray-400'}`}>
-                        {chat.lastUpdated?.toDate ? chat.lastUpdated.toDate().toLocaleDateString() : ''}
-                      </span>
+                      <span className="text-sm font-bold text-gray-900">{getOtherParticipantName(chat)}</span>
+                      <span className="text-[10px] text-gray-400 font-bold">{chat.lastUpdated?.toDate ? chat.lastUpdated.toDate().toLocaleDateString() : ''}</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <p className={`text-sm truncate max-w-[200px] ${isUnread ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
-                        {chat.lastMessage}
-                      </p>
-                      {isUnread && (
-                        <div className="w-2.5 h-2.5 bg-cyan-500 rounded-full shadow-sm"></div>
-                      )}
-                    </div>
+                    <p className="text-sm text-gray-500 truncate">{chat.lastMessage}</p>
                   </div>
                 </div>
               </Link>
-            );
-          })
+            ))
+          )
+        ) : (
+          // --- GROUP LIST ---
+          groups.length === 0 ? (
+            <div className="text-center py-20 text-gray-400 text-sm">No communities created yet. Be the first!</div>
+          ) : (
+            groups.map(group => (
+              <Link key={group.id} href={`/group/${group.id}`}>
+                <div className="p-4 border-b border-gray-50 hover:bg-white/60 transition cursor-pointer flex gap-3">
+                  <div className={`w-12 h-12 rounded-xl shadow-sm flex items-center justify-center font-bold text-lg ${group.isPublic ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {group.isPublic ? '#' : '🔒'}
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-black text-gray-900">{group.name}</span>
+                      <span className="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded-full text-gray-500">
+                        {group.memberCount || 0} members
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 line-clamp-1">{group.description}</p>
+                  </div>
+                </div>
+              </Link>
+            ))
+          )
         )}
       </div>
 
@@ -196,7 +229,7 @@ export default function ChatList() {
            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
            <span className="text-[10px] mt-1 font-bold">Chat</span>
         </div>
-        <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black">
+        <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
         </Link>
