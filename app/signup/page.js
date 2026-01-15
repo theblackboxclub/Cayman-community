@@ -1,10 +1,9 @@
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-// Point to root firebase.js
 import { auth, db } from '../../firebase'; 
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 
 // --- RANDOM USERNAME GENERATOR ---
 const generateUsername = () => {
@@ -20,11 +19,17 @@ const generateUsername = () => {
 
 export default function AuthPage() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true); // Default to Login now
+  const [isLogin, setIsLogin] = useState(true); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const checkUsernameExists = async (username) => {
+    const q = query(collection(db, "users"), where("username", "==", username));
+    const snap = await getDocs(q);
+    return !snap.empty;
+  };
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -37,10 +42,23 @@ export default function AuthPage() {
         await signInWithEmailAndPassword(auth, email, password);
         router.push('/');
       } else {
-        // --- SIGN UP (AUTO USERNAME) ---
+        // --- SIGN UP ---
         
-        // 1. Generate Random Name
-        const randomName = generateUsername();
+        // 1. Generate Unique Random Name
+        let randomName = generateUsername();
+        let isTaken = await checkUsernameExists(randomName);
+        let attempts = 0;
+
+        // Try 5 times to find a unique name
+        while (isTaken && attempts < 5) {
+          randomName = generateUsername();
+          isTaken = await checkUsernameExists(randomName);
+          attempts++;
+        }
+
+        if (isTaken) {
+          throw new Error("Could not generate a unique username. Please try again.");
+        }
 
         // 2. Create Auth User
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -119,7 +137,7 @@ export default function AuthPage() {
 
           {!isLogin && (
              <div className="text-xs text-center text-gray-400 bg-gray-50 p-2 rounded-lg border border-gray-100">
-               ✨ A random username (e.g. <b>SaltyIguana</b>) will be assigned to you.
+               ✨ We will generate a unique anonymous name for you.
              </div>
           )}
 
