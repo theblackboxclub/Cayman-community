@@ -20,7 +20,7 @@ const officialCommunities = [
 
 export default function ChatList() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('dms'); // 'dms' or 'groups'
+  const [activeTab, setActiveTab] = useState('dms'); 
   const [chats, setChats] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,7 @@ export default function ChatList() {
   const [newChatUsername, setNewChatUsername] = useState('');
   const [searchError, setSearchError] = useState('');
 
-  // 1. Initialize Official Groups (Runs once on load)
+  // Initialize Official Groups
   useEffect(() => {
     const initOfficialGroups = async () => {
       for (const comm of officialCommunities) {
@@ -37,7 +37,6 @@ export default function ChatList() {
         const docSnap = await getDoc(docRef);
         
         if (!docSnap.exists()) {
-          // Create if doesn't exist
           await setDoc(docRef, {
             name: comm.name,
             description: comm.desc,
@@ -48,13 +47,11 @@ export default function ChatList() {
             memberCount: 0,
             createdAt: serverTimestamp(),
             lastUpdated: serverTimestamp(),
-            isOfficial: true // Mark as official
+            isOfficial: true
           });
-          console.log(`Created official group: ${comm.name}`);
         }
       }
     };
-    
     initOfficialGroups();
   }, []);
 
@@ -63,7 +60,7 @@ export default function ChatList() {
       if (!currentUser) return router.push('/signup');
       setUser(currentUser);
 
-      // 2. Listen for DMs
+      // Listen for DMs
       const qDMs = query(
         collection(db, "chats"),
         where("participants", "array-contains", currentUser.uid)
@@ -71,18 +68,17 @@ export default function ChatList() {
 
       const unsubDMs = onSnapshot(qDMs, (snapshot) => {
         const dmData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Sort by last updated
         dmData.sort((a, b) => (b.lastUpdated?.toMillis() || 0) - (a.lastUpdated?.toMillis() || 0));
         setChats(dmData);
         setLoading(false);
       });
 
-      // 3. Listen for Groups
+      // Listen for Groups
       const qGroups = query(collection(db, "groups"), orderBy("memberCount", "desc"));
       
       const unsubGroups = onSnapshot(qGroups, (snapshot) => {
         const groupData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Sort so Official ones are likely top, then by members
+        // Sort: Official first, then by members
         groupData.sort((a, b) => {
             if (a.isOfficial && !b.isOfficial) return -1;
             if (!a.isOfficial && b.isOfficial) return 1;
@@ -121,7 +117,6 @@ export default function ChatList() {
       return;
     }
 
-    // Check existing DM
     const existingChat = chats.find(c => c.participants.includes(recipientId));
     if (existingChat) {
       router.push(`/chat/${existingChat.id}`);
@@ -167,7 +162,6 @@ export default function ChatList() {
            )}
          </div>
 
-         {/* Tabs */}
          <div className="flex bg-gray-100 p-1 rounded-xl">
            <button 
              onClick={() => setActiveTab('dms')}
@@ -185,8 +179,6 @@ export default function ChatList() {
       </div>
 
       <div className="max-w-md mx-auto">
-        
-        {/* DM CREATE INPUT */}
         {activeTab === 'dms' && isCreatingDM && (
           <div className="p-4 bg-white/50 border-b border-gray-100 backdrop-blur-sm animate-fade-in">
             <p className="text-xs font-bold text-gray-500 mb-2">Who to message?</p>
@@ -204,9 +196,7 @@ export default function ChatList() {
           </div>
         )}
 
-        {/* LIST CONTENT */}
         {activeTab === 'dms' ? (
-          // --- DM LIST ---
           chats.length === 0 ? (
             <div className="text-center py-20 text-gray-400 text-sm">No direct messages yet.</div>
           ) : (
@@ -228,7 +218,6 @@ export default function ChatList() {
             ))
           )
         ) : (
-          // --- GROUP LIST ---
           groups.length === 0 ? (
             <div className="text-center py-20 text-gray-400 text-sm">Loading communities...</div>
           ) : (
@@ -246,8 +235,9 @@ export default function ChatList() {
                           <svg className="w-3 h-3 text-cyan-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
                         )}
                       </div>
+                      {/* FIX: Added "members" text */}
                       <span className="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded-full text-gray-500 flex-shrink-0">
-                        {group.memberCount || 0}
+                        {group.memberCount || 0} members
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 truncate">{group.description}</p>
@@ -259,7 +249,6 @@ export default function ChatList() {
         )}
       </div>
 
-      {/* Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <Link href="/" className="flex flex-col items-center text-gray-400 hover:text-black">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
@@ -275,10 +264,10 @@ export default function ChatList() {
           </div>
           <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
         </Link>
-        <div className="flex flex-col items-center text-black cursor-pointer">
+        <Link href="/chat" className="flex flex-col items-center text-black">
            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
            <span className="text-[10px] mt-1 font-bold">Chat</span>
-        </div>
+        </Link>
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
