@@ -4,274 +4,199 @@ import { useRouter } from 'next/navigation';
 import { auth, db, storage } from '../../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, arrayUnion, arrayRemove, increment 
+  doc, onSnapshot, collection, addDoc, query, orderBy, serverTimestamp, updateDoc, arrayUnion, arrayRemove, getDoc 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-export default function ChatRoom({ params }) {
+export default function DMChat({ params }) {
   const router = useRouter();
   const { id } = params;
   
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [imageFile, setImageFile] = useState(null); 
-  const [isSending, setIsSending] = useState(false);
-  const [replyingTo, setReplyingTo] = useState(null);
-  
   const [user, setUser] = useState(null);
-  const [chatData, setChatData] = useState(null);
+  const [chatName, setChatName] = useState("Chat");
+  const [uploading, setUploading] = useState(false);
   
   const bottomRef = useRef(null);
-  const fileInputRef = useRef(null); 
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) {
-        router.push('/signup');
-        return;
-      }
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) return router.push('/signup');
       setUser(currentUser);
 
-      // 1. Fetch Chat Data & Mark as Read
-      const chatRef = doc(db, "chats", id);
-      const chatDoc = await getDoc(chatRef);
-      
+      // Get Chat Info
+      const chatDoc = await getDoc(doc(db, "chats", id));
       if (chatDoc.exists()) {
-        setChatData(chatDoc.data());
-        
-        // RESET MY UNREAD COUNT TO 0
-        // We use a dynamic key like `unreadCount_USERID`
-        await updateDoc(chatRef, {
-          [`unreadCount_${currentUser.uid}`]: 0
-        });
+        const data = chatDoc.data();
+        const otherName = data.participantNames.find(n => n !== currentUser.displayName);
+        setChatName(otherName || "Chat");
       }
-
-      // 2. Listen for Messages
-      const q = query(collection(db, "chats", id, "messages"));
-      const unsubMessages = onSnapshot(q, (snapshot) => {
-        const msgs = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        msgs.sort((a, b) => {
-           const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
-           const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
-           return timeA - timeB; 
-        });
-
-        setMessages(msgs);
-        if (bottomRef.current) {
-             setTimeout(() => bottomRef.current.scrollIntoView({ behavior: 'auto' }), 100);
-        }
-      });
-
-      return () => unsubMessages();
     });
 
-    return () => unsubscribe();
+    // Listen to Messages
+    const q = query(collection(db, "chats", id, "messages"), orderBy("createdAt", "asc"));
+    const unsubMsg = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setMessages(msgs);
+      // Auto scroll to bottom
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubMsg();
+    };
   }, [id, router]);
 
-  const handleSend = async (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() && !imageFile) return;
+    if (!newMessage.trim()) return;
 
-    setIsSending(true);
+    await addDoc(collection(db, "chats", id, "messages"), {
+      text: newMessage,
+      senderId: user.uid,
+      type: "text",
+      likes: [],
+      createdAt: serverTimestamp()
+    });
+    
+    // Update Chat Metadata
+    await updateDoc(doc(db, "chats", id), {
+      lastMessage: newMessage,
+      lastUpdated: serverTimestamp()
+    });
+
+    setNewMessage('');
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
 
     try {
-      let mediaUrl = null;
-      let mediaType = 'text';
+      const storageRef = ref(storage, `chat_images/${id}/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
 
-      if (imageFile) {
-        const uniqueName = `chat-media/${id}/${Date.now()}-${imageFile.name}`;
-        const storageRef = ref(storage, uniqueName);
-        const snapshot = await uploadBytes(storageRef, imageFile);
-        mediaUrl = await getDownloadURL(snapshot.ref);
-        mediaType = 'image';
-      }
-
-      const payload = {
-        text: newMessage,
+      await addDoc(collection(db, "chats", id, "messages"), {
         senderId: user.uid,
-        createdAt: serverTimestamp(),
-        likedBy: [],
-        mediaUrl: mediaUrl,
-        mediaType: mediaType
-      };
-
-      if (replyingTo) {
-        payload.replyTo = {
-          id: replyingTo.id,
-          text: replyingTo.mediaType === 'image' ? '📷 Image' : replyingTo.text,
-          senderId: replyingTo.senderId
-        };
-      }
-
-      await addDoc(collection(db, "chats", id, "messages"), payload);
-
-      // IDENTIFY THE OTHER USER TO INCREMENT THEIR UNREAD COUNT
-      const otherUserId = chatData.participants.find(uid => uid !== user.uid);
-      const previewText = mediaType === 'image' ? (newMessage ? `📷 ${newMessage}` : '📷 Image') : newMessage;
-
-      // Update Chat Meta (Last Message + Increment Unread for Recipient)
-      await updateDoc(doc(db, "chats", id), {
-        lastMessage: previewText,
-        lastUpdated: serverTimestamp(),
-        [`unreadCount_${otherUserId}`]: increment(1) 
+        type: "image",
+        mediaUrl: url,
+        likes: [],
+        createdAt: serverTimestamp()
       });
 
-      setNewMessage('');
-      setImageFile(null);
-      setReplyingTo(null);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } catch (error) {
-      console.error("Error sending:", error);
-      alert("Error sending message.");
+      await updateDoc(doc(db, "chats", id), {
+        lastMessage: "📷 Photo sent",
+        lastUpdated: serverTimestamp()
+      });
+
+    } catch (err) {
+      console.error(err);
     } finally {
-      setIsSending(false);
+      setUploading(false);
     }
   };
 
-  const handleLike = async (msg) => {
-    const msgRef = doc(db, "chats", id, "messages", msg.id);
-    const isLiked = msg.likedBy?.includes(user.uid);
-
-    if (isLiked) {
-      await updateDoc(msgRef, { likedBy: arrayRemove(user.uid) });
+  const handleLike = async (msgId, currentLikes) => {
+    const msgRef = doc(db, "chats", id, "messages", msgId);
+    if (currentLikes?.includes(user.uid)) {
+      await updateDoc(msgRef, { likes: arrayRemove(user.uid) });
     } else {
-      await updateDoc(msgRef, { likedBy: arrayUnion(user.uid) });
+      await updateDoc(msgRef, { likes: arrayUnion(user.uid) });
     }
   };
 
-  const getHeaderName = () => {
-    if (!chatData || !user) return "Chat";
-    return chatData.participantNames?.find(name => name !== user.email.split('@')[0]) || "Chat";
-  };
+  if (!user) return <div className="p-10 text-center">Loading...</div>;
 
   return (
     <div className="flex flex-col h-screen bg-white">
-      
       {/* Header */}
-      <div className="bg-white px-4 py-2 border-b border-gray-100 sticky top-0 z-10 flex items-center gap-3 shadow-sm">
-        <button onClick={() => router.back()} className="text-gray-900">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-        </button>
-        <div className="flex items-center gap-2">
-           <div className="w-8 h-8 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center font-bold text-xs">
-             {getHeaderName().charAt(0).toUpperCase()}
-           </div>
-           <h1 className="font-bold text-sm text-gray-900">{getHeaderName()}</h1>
+      <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 flex items-center gap-3 sticky top-0 z-20 shadow-sm">
+        <button onClick={() => router.back()}><svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center font-bold text-gray-600 text-sm">
+          {chatName.charAt(0).toUpperCase()}
         </div>
+        <h1 className="font-bold text-gray-900">{chatName}</h1>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto bg-white">
-        <div className="flex flex-col justify-end min-h-full px-3 pb-28 pt-4 gap-2">
-          {messages.map((msg, index) => {
-            const isMe = msg.senderId === user?.uid;
-            const isLiked = msg.likedBy?.length > 0;
-            const isSequence = index > 0 && messages[index - 1].senderId === msg.senderId;
-
+      {/* Messages Area - Starts from bottom */}
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-end min-h-0 bg-white">
+        <div className="flex flex-col gap-2"> {/* Actual list container */}
+          {messages.map((msg) => {
+            const isMe = msg.senderId === user.uid;
+            const isLiked = msg.likes?.length > 0;
             return (
-              <div key={msg.id} className={`flex w-full group ${isMe ? 'justify-end' : 'justify-start items-end gap-2'}`}>
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1 group items-end gap-2`}>
                 
-                {!isMe && (
-                  <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold text-gray-500 ${isSequence ? 'invisible' : 'bg-gray-200'}`}>
-                     {!isSequence && getHeaderName().charAt(0).toUpperCase()}
-                  </div>
-                )}
-
-                <div className={`relative flex items-center gap-2 max-w-[75%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                {/* Message Bubble */}
+                <div className={`relative max-w-[70%] px-4 py-2 text-sm shadow-sm ${isMe ? 'bg-cyan-500 text-white rounded-2xl rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-2xl rounded-bl-none'}`}>
                   
-                  <button onClick={() => setReplyingTo(msg)} className="opacity-0 group-hover:opacity-100 transition text-gray-400 hover:text-gray-600 p-1">
-                    <svg className="w-4 h-4 transform scale-x-[-1]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                  </button>
+                  {msg.type === 'image' ? (
+                    <img src={msg.mediaUrl} alt="Sent" className="rounded-lg mb-1 w-full h-auto" />
+                  ) : (
+                    <p>{msg.text}</p>
+                  )}
 
-                  <div 
-                    onDoubleClick={() => handleLike(msg)}
-                    className={`relative px-3 py-2 text-sm rounded-2xl cursor-pointer select-none transition active:scale-95 overflow-hidden ${
-                    isMe ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                  }`}>
-                    
-                    {msg.replyTo && (
-                      <div className={`mb-1 pl-2 border-l-2 text-xs opacity-80 ${isMe ? 'border-white/50' : 'border-gray-400'}`}>
-                        <p className="font-bold truncate">Replying to {msg.replyTo.senderId === user.uid ? 'You' : getHeaderName()}</p>
-                        <p className="truncate line-clamp-1">{msg.replyTo.text}</p>
-                      </div>
-                    )}
-
-                    {msg.mediaType === 'image' && msg.mediaUrl && (
-                      <div className="mb-1 rounded-lg overflow-hidden">
-                        <img src={msg.mediaUrl} alt="Sent image" className="w-full h-auto object-cover max-h-60" />
-                      </div>
-                    )}
-
-                    {msg.text && <p>{msg.text}</p>}
-
-                    {isLiked && (
-                      <div className={`absolute -bottom-2 ${isMe ? '-left-2' : '-right-2'} bg-white border border-gray-100 rounded-full p-0.5 shadow-sm`}>
-                        <span className="text-xs">❤️</span>
-                      </div>
-                    )}
-                  </div>
+                  {/* Reaction Heart (Bottom right of bubble) */}
+                  {isLiked && (
+                    <div className="absolute -bottom-2 -right-1 bg-white rounded-full p-0.5 border border-gray-100 shadow-sm">
+                      <span className="text-[10px]">❤️</span>
+                    </div>
+                  )}
                 </div>
+
+                {/* Like Button (Visible on hover or click) */}
+                <button 
+                  onClick={() => handleLike(msg.id, msg.likes)}
+                  className={`text-gray-300 hover:text-red-500 transition ${isLiked ? 'text-red-500' : 'opacity-0 group-hover:opacity-100'}`}
+                >
+                  <svg className="w-4 h-4" fill={msg.likes?.includes(user.uid) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                </button>
               </div>
             );
           })}
-          <div ref={bottomRef} />
+          <div ref={bottomRef}></div>
         </div>
       </div>
 
-      {/* Input */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-20">
-        
-        {replyingTo && (
-          <div className="bg-gray-50 px-4 py-2 flex justify-between items-center border-b border-gray-100">
-             <div className="text-xs text-gray-500">
-               <span className="font-bold">Replying to:</span> {replyingTo.mediaType === 'image' ? '📷 Image' : replyingTo.text.substring(0, 30)}...
-             </div>
-             <button onClick={() => setReplyingTo(null)} className="text-gray-400 hover:text-gray-600">
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-             </button>
-          </div>
-        )}
-
-        {imageFile && (
-           <div className="px-4 py-2 flex items-center gap-3 bg-gray-50 border-b border-gray-100">
-             <div className="relative w-12 h-12 rounded overflow-hidden border border-gray-200">
-                <img src={URL.createObjectURL(imageFile)} className="w-full h-full object-cover" />
-             </div>
-             <div className="flex-1 text-xs text-gray-500 truncate">{imageFile.name}</div>
-             <button onClick={() => setImageFile(null)} className="text-gray-400 hover:text-red-500">
-               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-             </button>
-           </div>
-        )}
-
-        <div className="px-3 py-3">
-          <form onSubmit={handleSend} className="max-w-md mx-auto relative flex items-center gap-2">
-            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={(e) => { if(e.target.files[0]) setImageFile(e.target.files[0]); }} />
-
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-gray-600 p-2">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            </button>
-
-            <input 
-              type="text" 
-              className="flex-1 bg-gray-100 border-none rounded-full pl-5 pr-12 py-3 text-sm focus:ring-0 outline-none placeholder-gray-400 text-gray-900"
-              placeholder={replyingTo ? "Type reply..." : "Message..."}
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              disabled={isSending}
-            />
-            
-            {(newMessage.trim() || imageFile) && (
-              <button type="submit" disabled={isSending} className="absolute right-2 p-1.5 text-blue-500 hover:text-blue-600 transition font-bold text-sm">
-                {isSending ? '...' : 'Send'}
-              </button>
+      {/* Input Area */}
+      <div className="p-3 border-t border-gray-100 bg-white sticky bottom-0 z-20">
+        <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            accept="image/*" 
+            onChange={handleImageUpload} 
+          />
+          <button 
+            type="button" 
+            onClick={() => fileInputRef.current?.click()}
+            className="text-cyan-600 p-2 bg-cyan-50 rounded-full hover:bg-cyan-100"
+          >
+            {uploading ? (
+              <span className="text-xs font-bold">...</span>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             )}
-          </form>
-        </div>
+          </button>
+
+          <input 
+            type="text" 
+            className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-cyan-100 placeholder-gray-400"
+            placeholder="Message..."
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+          />
+          
+          <button type="submit" disabled={!newMessage.trim()} className="text-cyan-600 font-bold text-sm px-2 disabled:opacity-50">
+            Send
+          </button>
+        </form>
       </div>
     </div>
   );
