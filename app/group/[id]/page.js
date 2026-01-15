@@ -17,8 +17,8 @@ export default function GroupChat({ params }) {
   const [newMessage, setNewMessage] = useState('');
   const [user, setUser] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [replyTo, setReplyTo] = useState(null);
   
-  // Permissions
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMember, setIsMember] = useState(false);
   const [isPending, setIsPending] = useState(false);
@@ -75,9 +75,11 @@ export default function GroupChat({ params }) {
       senderName: user.displayName || "Unknown",
       type: "text",
       likes: [],
+      replyTo: replyTo ? { text: replyTo.text, sender: replyTo.senderName } : null,
       createdAt: serverTimestamp()
     });
     setNewMessage('');
+    setReplyTo(null);
   };
 
   const handleImageUpload = async (e) => {
@@ -168,46 +170,34 @@ export default function GroupChat({ params }) {
           </div>
         </div>
         <div className="flex gap-2">
-          {isAdmin && (
-            <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="text-cyan-600 font-bold text-xs bg-cyan-50 px-3 py-1 rounded-full">
-              Admin
-            </button>
-          )}
-          {isMember && !isAdmin && (
-             <button onClick={handleLeave} className="text-red-500 font-bold text-xs bg-red-50 px-3 py-1 rounded-full">Leave</button>
-          )}
+          {isAdmin && <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="text-cyan-600 font-bold text-xs bg-cyan-50 px-3 py-1 rounded-full">Admin</button>}
+          {isMember && !isAdmin && <button onClick={handleLeave} className="text-red-500 font-bold text-xs bg-red-50 px-3 py-1 rounded-full">Leave</button>}
         </div>
       </div>
 
       {/* Admin Panel */}
       {showAdminPanel && isAdmin && (
-        <div className="bg-white border-b border-gray-200 p-4 animate-fade-in absolute top-14 left-0 right-0 z-30 shadow-lg">
-          <h3 className="font-bold text-sm mb-2 text-gray-900">Pending Requests</h3>
-          {group.pendingRequests?.length === 0 && <p className="text-xs text-gray-400 mb-4">No pending requests.</p>}
+        <div className="bg-white border-b border-gray-200 p-4 absolute top-14 left-0 right-0 z-30 shadow-lg">
+          <h3 className="font-bold text-sm mb-2 text-gray-900">Requests</h3>
           {group.pendingRequests?.map(reqId => (
-            <div key={reqId} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg mb-2">
+            <div key={reqId} className="flex justify-between bg-gray-50 p-2 rounded-lg mb-1">
               <span className="text-xs font-bold text-gray-600">{reqId.substring(0,8)}...</span>
               <button onClick={() => approveRequest(reqId)} className="text-green-600 text-xs font-bold">Approve</button>
             </div>
           ))}
-          <div className="mt-4 border-t border-gray-100 pt-2 flex justify-between">
-             <button onClick={handleLeave} className="text-red-500 text-xs font-bold">Leave Group</button>
-             <button onClick={deleteGroup} className="text-red-600 bg-red-50 px-3 py-1 rounded-lg text-xs font-bold">Delete Group</button>
+          <div className="mt-4 flex justify-between">
+             <button onClick={handleLeave} className="text-red-500 text-xs font-bold">Leave</button>
+             <button onClick={deleteGroup} className="text-red-600 bg-red-50 px-3 py-1 rounded-lg text-xs font-bold">Delete</button>
           </div>
         </div>
       )}
 
-      {/* Chat Area - Bottom Up */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-end min-h-0 bg-white">
+      {/* Chat Area */}
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-end min-h-0 bg-gray-50">
         {!group.isPublic && !isMember ? (
           <div className="text-center py-20 mb-auto">
-            <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">🔒</div>
             <h2 className="font-bold text-gray-900">Private Group</h2>
-            {isPending ? (
-              <button disabled className="bg-gray-300 text-white px-6 py-2 rounded-full font-bold text-sm mt-4">Request Sent</button>
-            ) : (
-              <button onClick={handleJoin} className="bg-black text-white px-6 py-2 rounded-full font-bold text-sm shadow-lg mt-4">Request to Join</button>
-            )}
+            {isPending ? <button disabled className="bg-gray-300 text-white px-6 py-2 rounded-full font-bold text-sm mt-4">Pending...</button> : <button onClick={handleJoin} className="bg-black text-white px-6 py-2 rounded-full font-bold text-sm shadow-lg mt-4">Request Access</button>}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -219,34 +209,28 @@ export default function GroupChat({ params }) {
 
             {messages.map((msg) => {
               const isMe = msg.senderId === user.uid;
-              const isLiked = msg.likes?.length > 0;
+              const isLiked = msg.likes?.includes(user.uid);
               return (
                 <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1 group items-end gap-2`}>
+                  {isMe && <button onClick={() => setReplyTo(msg)} className="opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-cyan-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg></button>}
                   
-                  {/* Bubble */}
-                  <div className={`relative max-w-[75%] px-4 py-2 text-sm shadow-sm ${isMe ? 'bg-cyan-500 text-white rounded-2xl rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-2xl rounded-bl-none'}`}>
+                  <div onDoubleClick={() => handleLike(msg.id, msg.likes)} className={`relative max-w-[75%] px-4 py-2 text-sm shadow-sm cursor-pointer select-none transition active:scale-95 ${isMe ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white rounded-2xl rounded-br-sm' : 'bg-white text-gray-900 border border-gray-200 rounded-2xl rounded-bl-sm'}`}>
                     
                     {!isMe && <p className="text-[10px] font-bold opacity-60 mb-0.5">{msg.senderName}</p>}
                     
-                    {msg.type === 'image' ? (
-                      <img src={msg.mediaUrl} alt="Sent" className="rounded-lg mb-1 w-full h-auto" />
-                    ) : (
-                      <p>{msg.text}</p>
-                    )}
-
-                    {isLiked && (
-                      <div className="absolute -bottom-2 -right-1 bg-white rounded-full p-0.5 border border-gray-100 shadow-sm">
-                        <span className="text-[10px]">❤️</span>
+                    {msg.replyTo && (
+                      <div className={`text-xs mb-1 pl-2 border-l-2 ${isMe ? 'border-white/50 text-white/80' : 'border-cyan-500 text-gray-500'}`}>
+                        <span className="font-bold block">{msg.replyTo.sender}</span>
+                        <span className="truncate block max-w-[150px]">{msg.replyTo.text}</span>
                       </div>
                     )}
+
+                    {msg.type === 'image' ? <img src={msg.mediaUrl} alt="Sent" className="rounded-lg mb-1 w-full h-auto" /> : <p className="leading-relaxed">{msg.text}</p>}
+                    
+                    {msg.likes?.length > 0 && <div className="absolute -bottom-2 -right-1 bg-white rounded-full p-0.5 border border-gray-100 shadow-sm flex items-center"><span className="text-[10px]">❤️</span></div>}
                   </div>
 
-                  <button 
-                    onClick={() => handleLike(msg.id, msg.likes)}
-                    className={`text-gray-300 hover:text-red-500 transition ${isLiked ? 'text-red-500' : 'opacity-0 group-hover:opacity-100'}`}
-                  >
-                    <svg className="w-4 h-4" fill={msg.likes?.includes(user.uid) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                  </button>
+                  {!isMe && <button onClick={() => setReplyTo(msg)} className="opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-cyan-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg></button>}
                 </div>
               );
             })}
@@ -255,40 +239,19 @@ export default function GroupChat({ params }) {
         )}
       </div>
 
-      {/* Input */}
       {isMember && (
         <div className="p-3 border-t border-gray-100 bg-white sticky bottom-0 z-20">
+          {replyTo && (
+            <div className="flex justify-between items-center bg-gray-50 p-2 rounded-lg mb-2 border-l-4 border-cyan-500">
+              <div className="text-xs text-gray-600"><span className="font-bold text-cyan-600">Replying to {replyTo.senderName}</span><p className="truncate max-w-[200px]">{replyTo.text}</p></div>
+              <button onClick={() => setReplyTo(null)} className="text-gray-400 hover:text-red-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+          )}
           <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleImageUpload} 
-            />
-            <button 
-              type="button" 
-              onClick={() => fileInputRef.current?.click()}
-              className="text-cyan-600 p-2 bg-cyan-50 rounded-full hover:bg-cyan-100"
-            >
-              {uploading ? (
-                <span className="text-xs font-bold">...</span>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              )}
-            </button>
-
-            <input 
-              type="text" 
-              className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-cyan-100 placeholder-gray-400"
-              placeholder="Message..."
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-            />
-            
-            <button type="submit" disabled={!newMessage.trim()} className="text-cyan-600 font-bold text-sm px-2 disabled:opacity-50">
-              Send
-            </button>
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="text-cyan-600 p-2 bg-cyan-50 rounded-full hover:bg-cyan-100 transition"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></button>
+            <input type="text" className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-cyan-100 placeholder-gray-400" placeholder="Message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} />
+            <button type="submit" disabled={!newMessage.trim()} className="text-cyan-600 font-bold text-sm px-2 disabled:opacity-50">Send</button>
           </form>
         </div>
       )}
