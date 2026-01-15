@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db, storage } from '../../../firebase'; 
-import { onAuthStateChanged, signOut } from 'firebase/auth'; // Added signOut
+import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { 
   collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc 
 } from 'firebase/firestore';
@@ -21,6 +21,18 @@ const getAvatarColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+// Username Generator
+const generateRandomUsername = () => {
+  const adjs = ['Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 'Royal', 'Lazy', 'Happy'];
+  const nouns = ['Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 'Pirate', 'Diver', 'Reef'];
+  
+  const adj = adjs[Math.floor(Math.random() * adjs.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(Math.random() * 1000) + 100;
+  
+  return `${adj}${noun}${num}`;
+};
+
 export default function PublicProfile({ params }) {
   const router = useRouter();
   const profileUsername = decodeURIComponent(params.username);
@@ -29,8 +41,11 @@ export default function PublicProfile({ params }) {
   const [profilePosts, setProfilePosts] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [chatLoading, setChatLoading] = useState(false);
+  
+  // States for Editing
   const [uploading, setUploading] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
   
   const fileInputRef = useRef(null);
 
@@ -51,6 +66,7 @@ export default function PublicProfile({ params }) {
         const userData = userSnap.docs[0].data();
         const userId = userSnap.docs[0].id;
         setProfileUser({ id: userId, ...userData });
+        setNewUsername(userData.username); // Init edit field
 
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
@@ -102,13 +118,31 @@ export default function PublicProfile({ params }) {
     }
   };
 
-  const handleStartChat = async () => {
-    if (!currentUser) {
-      router.push('/signup');
-      return;
+  const handleUsernameSave = async () => {
+    if (!newUsername.trim() || newUsername.length < 3) return alert("Username too short.");
+    
+    try {
+      const userRef = doc(db, "users", profileUser.id);
+      await updateDoc(userRef, { username: newUsername });
+      
+      // Update local state and turn off edit mode
+      setProfileUser(prev => ({ ...prev, username: newUsername }));
+      setIsEditingName(false);
+      
+      // Redirect to new URL because URL depends on username
+      router.push(`/user/${newUsername}`);
+    } catch (error) {
+      console.error("Error updating username:", error);
+      alert("Failed to update username.");
     }
-    setChatLoading(true);
+  };
 
+  const handleRandomize = () => {
+    setNewUsername(generateRandomUsername());
+  };
+
+  const handleStartChat = async () => {
+    if (!currentUser) return router.push('/signup');
     try {
       const chatsRef = collection(db, "chats");
       const qChat = query(chatsRef, where("participants", "array-contains", currentUser.uid));
@@ -136,14 +170,11 @@ export default function PublicProfile({ params }) {
       });
 
       router.push(`/chat/${docRef.id}`);
-      
     } catch (error) {
       console.error("Error starting chat:", error);
-      setChatLoading(false);
     }
   };
 
-  // --- LOGOUT FUNCTION ---
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/signup');
@@ -154,11 +185,12 @@ export default function PublicProfile({ params }) {
 
   const totalLikes = profilePosts.reduce((acc, post) => acc + (post.votes || 0), 0);
   const bgColor = getAvatarColor(profileUser.username); 
+  const isOwner = currentUser?.uid === profileUser.id;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
       
-      {/* Header with Logout */}
+      {/* Header */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
@@ -167,8 +199,7 @@ export default function PublicProfile({ params }) {
           <h1 className="font-bold text-lg text-gray-900">Profile</h1>
         </div>
         
-        {/* LOGOUT BUTTON (Only if viewing own profile) */}
-        {currentUser?.uid === profileUser.id && (
+        {isOwner && (
           <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-full transition">
             Sign Out
           </button>
@@ -181,7 +212,8 @@ export default function PublicProfile({ params }) {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center text-center mb-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
-          <div className="relative z-10 group">
+          <div className="relative z-10 group w-full">
+            {/* Avatar */}
             <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold mb-3 border-[4px] border-white shadow-md mx-auto overflow-hidden relative ${!profileUser.profilePic ? bgColor : 'bg-white'}`}>
               {profileUser.profilePic ? (
                 <img src={profileUser.profilePic} alt={profileUser.username} className="w-full h-full object-cover" />
@@ -189,7 +221,7 @@ export default function PublicProfile({ params }) {
                 <span className="text-white">{profileUser.username.charAt(0).toUpperCase()}</span>
               )}
 
-              {currentUser?.uid === profileUser.id && (
+              {isOwner && (
                 <div 
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer"
@@ -202,7 +234,32 @@ export default function PublicProfile({ params }) {
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
             {uploading && <p className="text-xs text-cyan-600 font-bold mb-1">Uploading...</p>}
             
-            <h2 className="text-2xl font-black text-gray-900 mb-1">u/{profileUser.username}</h2>
+            {/* Username Section */}
+            {isEditingName ? (
+              <div className="flex flex-col items-center gap-2 mb-4">
+                <input 
+                  type="text" 
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1 text-center font-bold text-gray-900 outline-none focus:ring-2 focus:ring-cyan-100 w-full"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                />
+                <div className="flex gap-2 w-full">
+                  <button onClick={handleRandomize} className="flex-1 bg-cyan-100 text-cyan-700 py-1.5 rounded-lg text-xs font-bold">Randomize 🎲</button>
+                  <button onClick={handleUsernameSave} className="flex-1 bg-black text-white py-1.5 rounded-lg text-xs font-bold">Save</button>
+                  <button onClick={() => setIsEditingName(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-400">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <h2 className="text-2xl font-black text-gray-900">u/{profileUser.username}</h2>
+                {isOwner && (
+                  <button onClick={() => setIsEditingName(true)} className="text-gray-400 hover:text-cyan-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </button>
+                )}
+              </div>
+            )}
+            
             <p className="text-xs text-cyan-600 font-bold uppercase tracking-widest mb-6">CircleCayman Member</p>
             
             <div className="flex justify-center gap-4 mb-6 w-full">
@@ -216,13 +273,12 @@ export default function PublicProfile({ params }) {
               </div>
             </div>
 
-            {currentUser?.uid !== profileUser.id && (
+            {!isOwner && (
               <button 
                 onClick={handleStartChat}
-                disabled={chatLoading}
                 className="w-full bg-cyan-600 text-white py-3 rounded-xl text-sm font-bold shadow-md hover:bg-cyan-700 transition flex items-center justify-center gap-2"
               >
-                {chatLoading ? "Loading..." : "Send Message"}
+                Send Message
               </button>
             )}
           </div>
