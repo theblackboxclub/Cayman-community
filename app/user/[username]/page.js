@@ -2,11 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db, storage } from '../../../firebase'; 
-import { onAuthStateChanged, signOut } from 'firebase/auth'; 
+import { onAuthStateChanged } from 'firebase/auth'; 
 import { 
   collection, query, where, getDocs, doc, updateDoc 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import Link from 'next/link';
 
 // Helper for colors
 const getAvatarColor = (name) => {
@@ -22,24 +23,12 @@ const getAvatarColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
-// IMPROVED GENERATOR (Unlimited Supply)
 const generateRandomUsername = () => {
-  const adjs = [
-    'Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 
-    'Royal', 'Lazy', 'Happy', 'Wild', 'Calm', 'Brave', 'Lucky', 'Jolly', 'Silent', 'Rapid', 
-    'Smooth', 'Cool', 'Hyper', 'Mystic', 'Neon', 'Velvet', 'Epic', 'Turbo', 'Sonic'
-  ];
-  const nouns = [
-    'Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 
-    'Pirate', 'Diver', 'Reef', 'Crab', 'Whale', 'Dolphin', 'Wave', 'Storm', 'Sunset', 'Boat', 
-    'Captain', 'Sailor', 'Surfer', 'Mango', 'Lime', 'Rum', 'Shell', 'Star', 'Moon'
-  ];
-  
+  const adjs = ['Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 'Royal', 'Lazy', 'Happy'];
+  const nouns = ['Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 'Pirate', 'Diver', 'Reef'];
   const adj = adjs[Math.floor(Math.random() * adjs.length)];
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  // 5-digit number ensures virtually no collisions
-  const num = Math.floor(Math.random() * 90000) + 10000; 
-  
+  const num = Math.floor(Math.random() * 90000) + 10000;
   return `${adj}${noun}${num}`;
 };
 
@@ -141,7 +130,6 @@ export default function PublicProfile({ params }) {
 
   const handleProfileSave = async () => {
     setSaveError('');
-    
     if (!newUsername.trim() || newUsername.length < 3) {
       setSaveError("Username too short.");
       return;
@@ -149,7 +137,6 @@ export default function PublicProfile({ params }) {
 
     try {
       if (newUsername !== profileUser.username) {
-        // Strict Uniqueness Check
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("username", "==", newUsername));
         const snap = await getDocs(q);
@@ -212,11 +199,6 @@ export default function PublicProfile({ params }) {
     }
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/signup');
-  };
-
   if (loading) return <div className="p-10 text-center text-gray-400 font-medium">Loading Profile...</div>;
   if (!profileUser) return <div className="p-10 text-center text-gray-500">User not found.</div>;
 
@@ -225,8 +207,9 @@ export default function PublicProfile({ params }) {
   const isOwner = currentUser?.uid === profileUser.id;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
+    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24">
       
+      {/* Header */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
@@ -234,13 +217,20 @@ export default function PublicProfile({ params }) {
           </button>
           <h1 className="font-bold text-lg text-gray-900">Profile</h1>
         </div>
+        
+        {/* Settings Button */}
         {isOwner && (
-          <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-full transition">Sign Out</button>
+          <Link href="/settings">
+            <button className="p-2 text-gray-500 hover:text-black hover:bg-gray-100 rounded-full transition">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </button>
+          </Link>
         )}
       </div>
 
       <div className="max-w-md mx-auto pt-6 px-4">
         
+        {/* Profile Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center text-center mb-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
@@ -260,7 +250,6 @@ export default function PublicProfile({ params }) {
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
             {uploading && <p className="text-xs text-cyan-600 font-bold mb-1">Uploading...</p>}
             
-            {/* EDIT MODE */}
             {isEditing ? (
               <div className="flex flex-col items-center gap-2 mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100 w-full animate-fade-in">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest self-start ml-1">Username</p>
@@ -274,7 +263,6 @@ export default function PublicProfile({ params }) {
                       placeholder="Username" 
                     />
                   </div>
-                  {/* BIGGER, CLEARER RANDOM BUTTON */}
                   <button 
                     onClick={handleRandomize} 
                     className="w-full bg-cyan-100 text-cyan-800 border border-cyan-200 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-cyan-200 transition"
@@ -346,6 +334,32 @@ export default function PublicProfile({ params }) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Added Bottom Nav manually to ensure consistency */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
+        <Link href="/" className="flex flex-col items-center text-gray-400 hover:text-black">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+          <span className="text-[10px] mt-1">Home</span>
+        </Link>
+        <Link href="/explore" className="flex flex-col items-center text-gray-400 hover:text-black">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+          <span className="text-[10px] mt-1">Explore</span>
+        </Link>
+        <Link href="/create" className="flex flex-col items-center -mt-6">
+          <div className="bg-black text-white p-3 rounded-full shadow-lg hover:bg-gray-800 hover:scale-105 transition">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          </div>
+          <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
+        </Link>
+        <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-black">
+           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+           <span className="text-[10px] mt-1">Chat</span>
+        </Link>
+        <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black">
+           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+           <span className="text-[10px] mt-1">Inbox</span>
+        </Link>
       </div>
     </div>
   );
