@@ -22,12 +22,24 @@ const getAvatarColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+// IMPROVED GENERATOR (Unlimited Supply)
 const generateRandomUsername = () => {
-  const adjs = ['Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 'Royal', 'Lazy', 'Happy'];
-  const nouns = ['Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 'Pirate', 'Diver', 'Reef'];
+  const adjs = [
+    'Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 
+    'Royal', 'Lazy', 'Happy', 'Wild', 'Calm', 'Brave', 'Lucky', 'Jolly', 'Silent', 'Rapid', 
+    'Smooth', 'Cool', 'Hyper', 'Mystic', 'Neon', 'Velvet', 'Epic', 'Turbo', 'Sonic'
+  ];
+  const nouns = [
+    'Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 
+    'Pirate', 'Diver', 'Reef', 'Crab', 'Whale', 'Dolphin', 'Wave', 'Storm', 'Sunset', 'Boat', 
+    'Captain', 'Sailor', 'Surfer', 'Mango', 'Lime', 'Rum', 'Shell', 'Star', 'Moon'
+  ];
+  
   const adj = adjs[Math.floor(Math.random() * adjs.length)];
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  const num = Math.floor(Math.random() * 1000) + 100;
+  // 5-digit number ensures virtually no collisions
+  const num = Math.floor(Math.random() * 90000) + 10000; 
+  
   return `${adj}${noun}${num}`;
 };
 
@@ -75,7 +87,7 @@ export default function PublicProfile({ params }) {
         
         setProfileUser({ id: userId, ...userData });
         setNewUsername(userData.username || "");
-        setNewBio(userData.bio || ""); // Load existing bio
+        setNewBio(userData.bio || ""); 
 
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
@@ -130,26 +142,24 @@ export default function PublicProfile({ params }) {
   const handleProfileSave = async () => {
     setSaveError('');
     
-    // Validate Username
     if (!newUsername.trim() || newUsername.length < 3) {
       setSaveError("Username too short.");
       return;
     }
 
     try {
-      // If username changed, check uniqueness
       if (newUsername !== profileUser.username) {
+        // Strict Uniqueness Check
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("username", "==", newUsername));
         const snap = await getDocs(q);
 
         if (!snap.empty) {
-          setSaveError("Username already taken.");
+          setSaveError("That username is taken. Try another.");
           return;
         }
       }
 
-      // Update Firestore
       const userRef = doc(db, "users", profileUser.id);
       await updateDoc(userRef, { 
         username: newUsername,
@@ -159,7 +169,6 @@ export default function PublicProfile({ params }) {
       setProfileUser(prev => ({ ...prev, username: newUsername, bio: newBio }));
       setIsEditing(false);
       
-      // If username changed, redirect to new URL
       if (newUsername !== profileUser.username) {
         router.push(`/user/${newUsername}`);
       }
@@ -218,7 +227,6 @@ export default function PublicProfile({ params }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-20">
       
-      {/* Header */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 z-10 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
@@ -233,12 +241,10 @@ export default function PublicProfile({ params }) {
 
       <div className="max-w-md mx-auto pt-6 px-4">
         
-        {/* Profile Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center text-center mb-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-cyan-50 to-white opacity-50 z-0"></div>
           
           <div className="relative z-10 group w-full">
-            {/* Avatar */}
             <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold mb-3 border-[4px] border-white shadow-md mx-auto overflow-hidden relative ${!profileUser.profilePic ? bgColor : 'bg-white'}`}>
               {profileUser.profilePic ? (
                 <img src={profileUser.profilePic} alt={profileUser.username} className="w-full h-full object-cover" />
@@ -258,15 +264,23 @@ export default function PublicProfile({ params }) {
             {isEditing ? (
               <div className="flex flex-col items-center gap-2 mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100 w-full animate-fade-in">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest self-start ml-1">Username</p>
-                <div className="flex gap-2 w-full mb-2">
-                  <input 
-                    type="text" 
-                    className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-900 outline-none" 
-                    value={newUsername} 
-                    onChange={(e) => setNewUsername(e.target.value)} 
-                    placeholder="Username" 
-                  />
-                  <button onClick={handleRandomize} className="bg-cyan-100 text-cyan-700 px-3 rounded-lg text-xs font-bold">🎲</button>
+                <div className="flex flex-col w-full mb-3 gap-2">
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-900 outline-none" 
+                      value={newUsername} 
+                      onChange={(e) => setNewUsername(e.target.value)} 
+                      placeholder="Username" 
+                    />
+                  </div>
+                  {/* BIGGER, CLEARER RANDOM BUTTON */}
+                  <button 
+                    onClick={handleRandomize} 
+                    className="w-full bg-cyan-100 text-cyan-800 border border-cyan-200 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-cyan-200 transition"
+                  >
+                    <span className="text-lg">🎲</span> Generate Random Name
+                  </button>
                 </div>
 
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest self-start ml-1">Bio</p>
@@ -286,7 +300,6 @@ export default function PublicProfile({ params }) {
                 </div>
               </div>
             ) : (
-              // VIEW MODE
               <div className="flex flex-col items-center gap-1 mb-2">
                 <h2 className="text-2xl font-black text-gray-900">{profileUser.username}</h2>
                 <p className="text-sm text-gray-600 max-w-[250px] leading-relaxed mb-1">{profileUser.bio || "CircleCayman Member"}</p>
