@@ -8,9 +8,9 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// Helper for colors - SAFE VERSION
+// Helper for colors
 const getAvatarColor = (name) => {
-  if (!name) return 'bg-gray-400'; // Prevent crash if name is missing
+  if (!name) return 'bg-gray-400';
   const colors = [
     'bg-red-500', 'bg-orange-500', 'bg-amber-500', 
     'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 
@@ -34,7 +34,6 @@ const generateRandomUsername = () => {
 export default function PublicProfile({ params }) {
   const router = useRouter();
   
-  // Safe decoding
   const rawUsername = params?.username;
   const profileUsername = rawUsername ? decodeURIComponent(rawUsername) : null;
   
@@ -44,8 +43,9 @@ export default function PublicProfile({ params }) {
   const [loading, setLoading] = useState(true);
   
   const [uploading, setUploading] = useState(false);
-  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [newUsername, setNewUsername] = useState('');
+  const [newBio, setNewBio] = useState('');
   const [saveError, setSaveError] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   
@@ -72,8 +72,10 @@ export default function PublicProfile({ params }) {
 
         const userData = userSnap.docs[0].data();
         const userId = userSnap.docs[0].id;
+        
         setProfileUser({ id: userId, ...userData });
         setNewUsername(userData.username || "");
+        setNewBio(userData.bio || ""); // Load existing bio
 
         const postsRef = collection(db, "posts");
         const qPosts = query(postsRef, where("userId", "==", userId));
@@ -125,36 +127,44 @@ export default function PublicProfile({ params }) {
     }
   };
 
-  const handleUsernameSave = async () => {
+  const handleProfileSave = async () => {
     setSaveError('');
-    if (!newUsername.trim() || newUsername.length < 3) {
-      setSaveError("Too short (min 3 chars).");
-      return;
-    }
-
-    if (newUsername === profileUser.username) {
-      setIsEditingName(false);
-      return;
-    }
     
-    try {
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("username", "==", newUsername));
-      const snap = await getDocs(q);
+    // Validate Username
+    if (!newUsername.trim() || newUsername.length < 3) {
+      setSaveError("Username too short.");
+      return;
+    }
 
-      if (!snap.empty) {
-        setSaveError("Username already taken.");
-        return;
+    try {
+      // If username changed, check uniqueness
+      if (newUsername !== profileUser.username) {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("username", "==", newUsername));
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+          setSaveError("Username already taken.");
+          return;
+        }
       }
 
+      // Update Firestore
       const userRef = doc(db, "users", profileUser.id);
-      await updateDoc(userRef, { username: newUsername });
+      await updateDoc(userRef, { 
+        username: newUsername,
+        bio: newBio 
+      });
       
-      setProfileUser(prev => ({ ...prev, username: newUsername }));
-      setIsEditingName(false);
-      router.push(`/user/${newUsername}`);
+      setProfileUser(prev => ({ ...prev, username: newUsername, bio: newBio }));
+      setIsEditing(false);
+      
+      // If username changed, redirect to new URL
+      if (newUsername !== profileUser.username) {
+        router.push(`/user/${newUsername}`);
+      }
     } catch (error) {
-      console.error("Error updating username:", error);
+      console.error("Error updating profile:", error);
       setSaveError("Failed to update.");
     }
   };
@@ -169,7 +179,6 @@ export default function PublicProfile({ params }) {
     setChatLoading(true);
     
     try {
-      // 1. Check if chat exists
       const chatsRef = collection(db, "chats");
       const qChat = query(chatsRef, where("participants", "array-contains", currentUser.uid));
       const chatSnap = await getDocs(qChat);
@@ -185,7 +194,6 @@ export default function PublicProfile({ params }) {
       if (existingChatId) {
         router.push(`/chat/${existingChatId}`);
       } else {
-        // Go to new chat draft page
         router.push(`/chat/new?uid=${profileUser.id}&name=${encodeURIComponent(profileUser.username)}`);
       }
     } catch (error) {
@@ -246,27 +254,55 @@ export default function PublicProfile({ params }) {
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
             {uploading && <p className="text-xs text-cyan-600 font-bold mb-1">Uploading...</p>}
             
-            {/* Edit Username */}
-            {isEditingName ? (
-              <div className="flex flex-col items-center gap-2 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100 w-full">
-                <input type="text" className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-center font-bold text-gray-900 outline-none w-full mb-2" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="Enter name" />
-                {saveError && <p className="text-xs text-red-500 font-bold mb-2">{saveError}</p>}
-                <div className="flex gap-2 w-full">
-                  <button onClick={handleRandomize} className="flex-1 bg-cyan-100 text-cyan-700 py-2 rounded-lg text-xs font-bold">Random 🎲</button>
-                  <button onClick={handleUsernameSave} className="flex-1 bg-black text-white py-2 rounded-lg text-xs font-bold">Save</button>
+            {/* EDIT MODE */}
+            {isEditing ? (
+              <div className="flex flex-col items-center gap-2 mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100 w-full animate-fade-in">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest self-start ml-1">Username</p>
+                <div className="flex gap-2 w-full mb-2">
+                  <input 
+                    type="text" 
+                    className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-900 outline-none" 
+                    value={newUsername} 
+                    onChange={(e) => setNewUsername(e.target.value)} 
+                    placeholder="Username" 
+                  />
+                  <button onClick={handleRandomize} className="bg-cyan-100 text-cyan-700 px-3 rounded-lg text-xs font-bold">🎲</button>
                 </div>
-                <button onClick={() => {setIsEditingName(false); setSaveError('');}} className="mt-2 text-xs font-bold text-gray-400">Cancel</button>
+
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest self-start ml-1">Bio</p>
+                <textarea 
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none mb-3 resize-none h-20"
+                  value={newBio}
+                  onChange={(e) => setNewBio(e.target.value)}
+                  placeholder="Tell us about yourself..."
+                  maxLength={150}
+                />
+
+                {saveError && <p className="text-xs text-red-500 font-bold mb-2">{saveError}</p>}
+                
+                <div className="flex gap-2 w-full">
+                  <button onClick={handleProfileSave} className="flex-1 bg-black text-white py-2 rounded-lg text-xs font-bold shadow-md hover:scale-[1.02] transition">Save Profile</button>
+                  <button onClick={() => {setIsEditing(false); setSaveError('');}} className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600">Cancel</button>
+                </div>
               </div>
             ) : (
+              // VIEW MODE
               <div className="flex flex-col items-center gap-1 mb-2">
                 <h2 className="text-2xl font-black text-gray-900">{profileUser.username}</h2>
-                {isOwner && <button onClick={() => setIsEditingName(true)} className="text-xs font-bold text-cyan-600 hover:text-cyan-800 bg-cyan-50 px-3 py-1 rounded-full mt-1">Change Username</button>}
+                <p className="text-sm text-gray-600 max-w-[250px] leading-relaxed mb-1">{profileUser.bio || "CircleCayman Member"}</p>
+                
+                {isOwner && (
+                  <button 
+                    onClick={() => setIsEditing(true)} 
+                    className="text-xs font-bold text-cyan-600 hover:text-cyan-800 bg-cyan-50 px-4 py-1.5 rounded-full mt-2 transition hover:bg-cyan-100"
+                  >
+                    Edit Profile
+                  </button>
+                )}
               </div>
             )}
             
-            <p className="text-xs text-cyan-600 font-bold uppercase tracking-widest mb-6">CircleCayman Member</p>
-            
-            <div className="flex justify-center gap-4 mb-6 w-full">
+            <div className="flex justify-center gap-4 mb-6 w-full mt-4">
               <div className="flex-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
                 <span className="block text-xl font-black text-gray-900">{profilePosts.length}</span>
                 <span className="text-[10px] font-bold text-gray-400 uppercase">Posts</span>
