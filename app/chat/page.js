@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, orderBy, doc, setDoc, getDoc 
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, orderBy, doc, setDoc, getDoc, deleteDoc 
 } from 'firebase/firestore';
 import Link from 'next/link';
 
@@ -25,9 +25,14 @@ export default function ChatList() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  
+  // Creation States
   const [isCreatingDM, setIsCreatingDM] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
   const [searchError, setSearchError] = useState('');
+  
+  // Edit/Delete Mode
+  const [isEditing, setIsEditing] = useState(false);
 
   // Initialize Official Groups
   useEffect(() => {
@@ -78,7 +83,6 @@ export default function ChatList() {
       
       const unsubGroups = onSnapshot(qGroups, (snapshot) => {
         const groupData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Sort: Official first, then by members
         groupData.sort((a, b) => {
             if (a.isOfficial && !b.isOfficial) return -1;
             if (!a.isOfficial && b.isOfficial) return 1;
@@ -136,6 +140,20 @@ export default function ChatList() {
     }
   };
 
+  const handleDeleteChat = async (chatId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!confirm("Delete this conversation?")) return;
+    
+    try {
+      await deleteDoc(doc(db, "chats", chatId));
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+      alert("Could not delete chat.");
+    }
+  };
+
   const getOtherParticipantName = (chat) => {
     if (!chat.participantNames) return "Unknown";
     return chat.participantNames.find(name => name !== (user?.displayName || "")) || "Chat";
@@ -148,29 +166,44 @@ export default function ChatList() {
       {/* Header */}
       <div className="bg-white/90 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10 px-4 py-3 flex flex-col gap-3 shadow-sm">
          <div className="flex justify-between items-center">
-           <h1 className="font-black text-xl text-gray-900 tracking-tight">Messages</h1>
-           {activeTab === 'dms' ? (
-             <button onClick={() => setIsCreatingDM(!isCreatingDM)} className="bg-black text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md">
-               + New Message
-             </button>
-           ) : (
-             <Link href="/chat/create">
-               <button className="bg-cyan-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md">
-                 + Create Group
+           <div className="flex items-center gap-2">
+             {isEditing && (
+               <button onClick={() => setIsEditing(false)} className="text-sm font-bold text-gray-500">Done</button>
+             )}
+             <h1 className="font-black text-xl text-gray-900 tracking-tight">Messages</h1>
+           </div>
+           
+           <div className="flex gap-2">
+             {/* EDIT BUTTON (Only for DMs) */}
+             {activeTab === 'dms' && chats.length > 0 && !isEditing && (
+               <button onClick={() => setIsEditing(true)} className="text-xs font-bold text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-full">
+                 Edit
                </button>
-             </Link>
-           )}
+             )}
+
+             {activeTab === 'dms' && !isEditing ? (
+               <button onClick={() => setIsCreatingDM(!isCreatingDM)} className="bg-black text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-md">
+                 + New
+               </button>
+             ) : activeTab === 'groups' ? (
+               <Link href="/chat/create">
+                 <button className="bg-cyan-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-md">
+                   + Group
+                 </button>
+               </Link>
+             ) : null}
+           </div>
          </div>
 
          <div className="flex bg-gray-100 p-1 rounded-xl">
            <button 
-             onClick={() => setActiveTab('dms')}
+             onClick={() => { setActiveTab('dms'); setIsEditing(false); }}
              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${activeTab === 'dms' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
            >
              Inbox
            </button>
            <button 
-             onClick={() => setActiveTab('groups')}
+             onClick={() => { setActiveTab('groups'); setIsEditing(false); }}
              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${activeTab === 'groups' ? 'bg-white shadow-sm text-cyan-600' : 'text-gray-500'}`}
            >
              Communities
@@ -179,7 +212,7 @@ export default function ChatList() {
       </div>
 
       <div className="max-w-md mx-auto">
-        {activeTab === 'dms' && isCreatingDM && (
+        {activeTab === 'dms' && isCreatingDM && !isEditing && (
           <div className="p-4 bg-white/50 border-b border-gray-100 backdrop-blur-sm animate-fade-in">
             <p className="text-xs font-bold text-gray-500 mb-2">Who to message?</p>
             <div className="flex gap-2">
@@ -201,20 +234,33 @@ export default function ChatList() {
             <div className="text-center py-20 text-gray-400 text-sm">No direct messages yet.</div>
           ) : (
             chats.map(chat => (
-              <Link key={chat.id} href={`/chat/${chat.id}`}>
-                <div className="p-4 border-b border-gray-50 hover:bg-white/60 transition cursor-pointer flex gap-3">
-                  <div className="w-12 h-12 bg-white border border-gray-100 shadow-sm rounded-full flex items-center justify-center font-bold text-gray-700 text-sm">
-                    {getOtherParticipantName(chat).charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 pt-1">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm font-bold text-gray-900">{getOtherParticipantName(chat)}</span>
-                      <span className="text-[10px] text-gray-400 font-bold">{chat.lastUpdated?.toDate ? chat.lastUpdated.toDate().toLocaleDateString() : ''}</span>
+              <div key={chat.id} className="relative group">
+                <Link href={`/chat/${chat.id}`} className="block">
+                  <div className={`p-4 border-b border-gray-50 hover:bg-white/60 transition flex items-center gap-3 ${isEditing ? 'pl-2' : ''}`}>
+                    
+                    {/* DELETE BUTTON (Instagram Style) */}
+                    {isEditing && (
+                      <div 
+                        onClick={(e) => handleDeleteChat(chat.id, e)}
+                        className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white flex-shrink-0 cursor-pointer animate-fade-in mr-1 shadow-sm"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" /></svg>
+                      </div>
+                    )}
+
+                    <div className="w-12 h-12 bg-white border border-gray-100 shadow-sm rounded-full flex items-center justify-center font-bold text-gray-700 text-sm flex-shrink-0">
+                      {getOtherParticipantName(chat).charAt(0).toUpperCase()}
                     </div>
-                    <p className="text-sm text-gray-500 truncate">{chat.lastMessage}</p>
+                    <div className="flex-1 pt-1 min-w-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-bold text-gray-900 truncate">{getOtherParticipantName(chat)}</span>
+                        <span className="text-[10px] text-gray-400 font-bold flex-shrink-0">{chat.lastUpdated?.toDate ? chat.lastUpdated.toDate().toLocaleDateString() : ''}</span>
+                      </div>
+                      <p className="text-sm text-gray-500 truncate">{chat.lastMessage}</p>
+                    </div>
                   </div>
-                </div>
-              </Link>
+                </Link>
+              </div>
             ))
           )
         ) : (
@@ -235,7 +281,6 @@ export default function ChatList() {
                           <svg className="w-3 h-3 text-cyan-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
                         )}
                       </div>
-                      {/* FIX: Added "members" text */}
                       <span className="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded-full text-gray-500 flex-shrink-0">
                         {group.memberCount || 0} members
                       </span>
@@ -264,10 +309,10 @@ export default function ChatList() {
           </div>
           <span className="text-[10px] font-bold mt-1 text-gray-400">Create</span>
         </Link>
-        <Link href="/chat" className="flex flex-col items-center text-black">
+        <div className="flex flex-col items-center text-black cursor-pointer">
            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
            <span className="text-[10px] mt-1 font-bold">Chat</span>
-        </Link>
+        </div>
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
            <span className="text-[10px] mt-1">Inbox</span>
