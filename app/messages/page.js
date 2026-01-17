@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-// Ensure this path points to your root firebase.js
 import { db, auth } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -23,7 +22,6 @@ export default function Inbox() {
       }
       setUser(currentUser);
 
-      // FIXED QUERY: Removed 'orderBy' to prevent Index errors that cause "Loading..." hang
       const q = query(
         collection(db, "notifications"),
         where("toUserId", "==", currentUser.uid)
@@ -35,7 +33,7 @@ export default function Inbox() {
           ...doc.data()
         }));
 
-        // Sort in Javascript instead (Newest first)
+        // Sort in Javascript (Newest first)
         notifs.sort((a, b) => {
            const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
            const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
@@ -46,7 +44,7 @@ export default function Inbox() {
         setLoading(false);
       }, (error) => {
         console.error("Error fetching notifications:", error);
-        setLoading(false); // Stop loading even if error
+        setLoading(false);
       });
 
       return () => unsubscribeNotifs();
@@ -86,9 +84,7 @@ export default function Inbox() {
   };
 
   const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    // Handle cases where timestamp might be pending or missing
-    if (!timestamp.toDate) return 'Just now';
+    if (!timestamp || !timestamp.toDate) return 'Just now';
     
     const date = timestamp.toDate();
     const now = new Date();
@@ -147,7 +143,8 @@ export default function Inbox() {
 
               <div className="flex-1">
                 <p className="text-sm text-gray-900 leading-snug">
-                  <span className="font-bold">u/{notif.fromUser}</span> 
+                  {/* REMOVED u/ PREFIX HERE */}
+                  <span className="font-bold">{notif.fromUser}</span> 
                   {notif.type === 'like' ? ' liked your ' : ' replied to your '}
                   {notif.contentType}.
                 </p>
