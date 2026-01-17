@@ -143,8 +143,7 @@ export default function Inbox() {
 
               <div className="flex-1">
                 <p className="text-sm text-gray-900 leading-snug">
-                  {/* REMOVED u/ PREFIX HERE */}
-                  <span className="font-bold">{notif.fromUser}</span> 
+                  <span className="font-bold">{notif.fromUser?.replace('u/', '') || "User"}</span> 
                   {notif.type === 'like' ? ' liked your ' : ' replied to your '}
                   {notif.contentType}.
                 </p>
