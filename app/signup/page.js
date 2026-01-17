@@ -5,14 +5,22 @@ import { auth, db } from '../../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 
-// --- RANDOM USERNAME GENERATOR ---
+// IMPROVED GENERATOR (Unlimited Supply)
 const generateUsername = () => {
-  const adjs = ['Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 'Royal', 'Lazy', 'Happy'];
-  const nouns = ['Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 'Pirate', 'Diver', 'Reef'];
+  const adjs = [
+    'Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 
+    'Royal', 'Lazy', 'Happy', 'Wild', 'Calm', 'Brave', 'Lucky', 'Jolly', 'Silent', 'Rapid', 
+    'Smooth', 'Cool', 'Hyper', 'Mystic', 'Neon', 'Velvet', 'Epic', 'Turbo', 'Sonic'
+  ];
+  const nouns = [
+    'Iguana', 'Stingray', 'Turtle', 'Conch', 'Rooster', 'Coconut', 'Shark', 'Marlin', 'Palm', 
+    'Pirate', 'Diver', 'Reef', 'Crab', 'Whale', 'Dolphin', 'Wave', 'Storm', 'Sunset', 'Boat', 
+    'Captain', 'Sailor', 'Surfer', 'Mango', 'Lime', 'Rum', 'Shell', 'Star', 'Moon'
+  ];
   
   const adj = adjs[Math.floor(Math.random() * adjs.length)];
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  const num = Math.floor(Math.random() * 1000) + 100; // 100-1099
+  const num = Math.floor(Math.random() * 90000) + 10000; // 5-digit number
   
   return `${adj}${noun}${num}`;
 };
@@ -49,7 +57,6 @@ export default function AuthPage() {
         let isTaken = await checkUsernameExists(randomName);
         let attempts = 0;
 
-        // Try 5 times to find a unique name
         while (isTaken && attempts < 5) {
           randomName = generateUsername();
           isTaken = await checkUsernameExists(randomName);
@@ -71,6 +78,7 @@ export default function AuthPage() {
         await setDoc(doc(db, "users", user.uid), {
           username: randomName,
           email: email,
+          bio: "CircleCayman Member", // Default Bio
           createdAt: serverTimestamp(),
           profilePic: null 
         });
@@ -88,7 +96,6 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white flex flex-col items-center justify-center p-6">
       
-      {/* Logo */}
       <div className="flex items-center gap-2 mb-8">
          <div className="w-10 h-10 rounded-full border-[6px] border-cyan-600"></div>
          <span className="font-black text-3xl tracking-tighter text-gray-900">
@@ -96,7 +103,6 @@ export default function AuthPage() {
          </span>
       </div>
 
-      {/* Auth Card */}
       <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 w-full max-w-sm">
         <h2 className="text-2xl font-black text-gray-900 mb-1">
           {isLogin ? "Welcome back" : "Join the circle"}
