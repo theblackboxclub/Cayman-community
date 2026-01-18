@@ -5,7 +5,7 @@ import { auth, db } from '../../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 
-// IMPROVED GENERATOR (Unlimited Supply)
+// RANDOM USERNAME GENERATOR
 const generateUsername = () => {
   const adjs = [
     'Salty', 'Sunny', 'Tropical', 'Grand', 'Blue', 'Sandy', 'Coral', 'Golden', 'Breezy', 
@@ -57,6 +57,7 @@ export default function AuthPage() {
         let isTaken = await checkUsernameExists(randomName);
         let attempts = 0;
 
+        // Try 5 times to find a unique name
         while (isTaken && attempts < 5) {
           randomName = generateUsername();
           isTaken = await checkUsernameExists(randomName);
@@ -83,7 +84,7 @@ export default function AuthPage() {
           profilePic: null 
         });
 
-        // REDIRECT TO WELCOME
+        // 5. Redirect to Welcome Screen
         router.push('/welcome');
       }
     } catch (err) {
@@ -97,6 +98,7 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white flex flex-col items-center justify-center p-6">
       
+      {/* Logo */}
       <div className="flex items-center gap-2 mb-8">
          <div className="w-10 h-10 rounded-full border-[6px] border-cyan-600"></div>
          <span className="font-black text-3xl tracking-tighter text-gray-900">
@@ -104,6 +106,7 @@ export default function AuthPage() {
          </span>
       </div>
 
+      {/* Auth Card */}
       <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 w-full max-w-sm">
         <h2 className="text-2xl font-black text-gray-900 mb-1">
           {isLogin ? "Welcome back" : "Join the circle"}
