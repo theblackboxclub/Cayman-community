@@ -46,11 +46,11 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        // --- LOG IN ---
+        // --- LOG IN (Go straight to Feed) ---
         await signInWithEmailAndPassword(auth, email, password);
         router.push('/');
       } else {
-        // --- SIGN UP ---
+        // --- SIGN UP (Go to Welcome) ---
         
         // 1. Generate Unique Random Name
         let randomName = generateUsername();
@@ -78,12 +78,13 @@ export default function AuthPage() {
         await setDoc(doc(db, "users", user.uid), {
           username: randomName,
           email: email,
-          bio: "CircleCayman Member", // Default Bio
+          bio: "CircleCayman Member", 
           createdAt: serverTimestamp(),
           profilePic: null 
         });
 
-        router.push('/');
+        // REDIRECT TO WELCOME
+        router.push('/welcome');
       }
     } catch (err) {
       console.error(err);
