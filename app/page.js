@@ -27,14 +27,14 @@ const communityIcons = {
   "RealEstate": { icon: "🏠", color: "bg-green-100 text-green-800" },
 };
 
-function HomeContent() {
+function FeedContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [dbUser, setDbUser] = useState(null); 
-  const [blockedUsers, setBlockedUsers] = useState([]); // NEW: Store blocked list
+  const [blockedUsers, setBlockedUsers] = useState([]);
   
   const initialCommunity = searchParams.get('community') || 'All';
   const initialSearch = searchParams.get('search') || '';
@@ -55,7 +55,7 @@ function HomeContent() {
           if (docSnap.exists()) {
             const data = docSnap.data();
             setDbUser(data);
-            setBlockedUsers(data.blockedUsers || []); // Fetch blocked list
+            setBlockedUsers(data.blockedUsers || []); 
           }
         } catch (e) {
           console.error("Error fetching user details", e);
@@ -114,10 +114,8 @@ function HomeContent() {
   };
 
   const filteredPosts = posts.filter(post => {
-    // 1. Filter out blocked users
     if (blockedUsers.includes(post.userId)) return false;
 
-    // 2. Normal filters
     const postComm = cleanName(post.community);
     const selectedComm = cleanName(selectedCommunity);
     const matchesCommunity = selectedCommunity === 'All' || postComm === selectedComm;
@@ -208,5 +206,14 @@ function HomeContent() {
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg><span className="text-[10px] mt-1">Inbox</span></Link>
       </div>
     </div>
+  );
+}
+
+// MAIN EXPORT WITH SUSPENSE
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading Feed...</div>}>
+      <FeedContent />
+    </Suspense>
   );
 }
