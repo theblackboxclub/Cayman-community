@@ -8,6 +8,7 @@ import {
   collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc 
 } from 'firebase/firestore';
 
+// --- HELPERS ---
 const getAvatarColor = (name) => {
   if (!name) return 'bg-gray-400';
   const colors = ['bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'];
@@ -57,9 +58,7 @@ function FeedContent() {
             setDbUser(data);
             setBlockedUsers(data.blockedUsers || []); 
           }
-        } catch (e) {
-          console.error("Error fetching user details", e);
-        }
+        } catch (e) { console.error(e); }
       }
     });
     return () => unsubscribe();
@@ -90,12 +89,29 @@ function FeedContent() {
     e.preventDefault(); 
     if (!currentUser) return alert("Sign in to vote.");
     const postRef = doc(db, "posts", post.id);
-    const isLiked = post.likedBy?.includes(currentUser.uid);
-    if (isLiked) {
+    if (post.likedBy?.includes(currentUser.uid)) {
       await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(currentUser.uid) });
     } else {
       await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(currentUser.uid) });
     }
+  };
+
+  // --- POLL VOTING LOGIC ---
+  const handleVotePoll = async (e, post, optionIndex) => {
+    e.preventDefault();
+    if (!currentUser) return alert("Sign in to vote.");
+
+    // Check if already voted
+    const hasVoted = post.pollOptions.some(opt => opt.votes.includes(currentUser.uid));
+    if (hasVoted) return; // Prevent double voting
+
+    // Create deep copy of options to modify
+    const newOptions = [...post.pollOptions];
+    newOptions[optionIndex].votes.push(currentUser.uid);
+
+    // Update Firestore
+    const postRef = doc(db, "posts", post.id);
+    await updateDoc(postRef, { pollOptions: newOptions });
   };
 
   const handleUserClick = (e, username) => {
@@ -115,13 +131,11 @@ function FeedContent() {
 
   const filteredPosts = posts.filter(post => {
     if (blockedUsers.includes(post.userId)) return false;
-
     const postComm = cleanName(post.community);
     const selectedComm = cleanName(selectedCommunity);
     const matchesCommunity = selectedCommunity === 'All' || postComm === selectedComm;
     const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = post.title.toLowerCase().includes(searchLower) || post.body.toLowerCase().includes(searchLower);
-    
+    const matchesSearch = post.title.toLowerCase().includes(searchLower) || (post.body && post.body.toLowerCase().includes(searchLower));
     return matchesCommunity && matchesSearch;
   });
 
@@ -173,9 +187,15 @@ function FeedContent() {
           const commName = cleanName(post.community);
           const commData = communityIcons[commName] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
           
+          // POLL DATA
+          const isPoll = post.type === 'poll' && post.pollOptions;
+          const totalVotes = isPoll ? post.pollOptions.reduce((acc, opt) => acc + opt.votes.length, 0) : 0;
+          const userVoted = isPoll ? post.pollOptions.some(opt => opt.votes.includes(currentUser?.uid)) : false;
+
           return (
             <Link href={`/post/${post.id}`} key={post.id}>
               <div className="bg-white mb-3 rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all active:scale-[0.99] cursor-pointer">
+                {/* Header */}
                 <div className="flex items-center text-xs text-gray-500 mb-2">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold mr-2 text-[12px] ${commData.color}`}>{commData.icon}</div>
                   <span className="font-bold text-gray-900 mr-1">{commName}</span>
@@ -183,11 +203,54 @@ function FeedContent() {
                   <div className={`w-4 h-4 rounded-full ml-1 mr-1 flex-shrink-0 ${getAvatarColor(post.author)}`}></div>
                   <span onClick={(e) => handleUserClick(e, post.author)} className="hover:text-cyan-600 hover:underline cursor-pointer font-medium text-gray-700">{post.author}</span>
                 </div>
+                
                 <div className="pb-2">
                   <h3 className="text-base font-bold text-gray-900 leading-snug mb-1.5">{post.title}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
-                  {post.mediaType === 'image' && post.mediaUrl && <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 h-56 relative shadow-inner"><img src={post.mediaUrl} className="w-full h-full object-cover" /></div>}
+                  
+                  {/* IMAGE CONTENT */}
+                  {post.type === 'image' && post.mediaUrl && (
+                    <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 h-56 relative shadow-inner">
+                      <img src={post.mediaUrl} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+
+                  {/* POLL CONTENT */}
+                  {isPoll && (
+                    <div className="mb-3 space-y-2">
+                      {post.pollOptions.map((opt, idx) => {
+                        const percentage = totalVotes > 0 ? Math.round((opt.votes.length / totalVotes) * 100) : 0;
+                        const isWinner = totalVotes > 0 && percentage >= Math.max(...post.pollOptions.map(o => totalVotes > 0 ? (o.votes.length/totalVotes)*100 : 0));
+                        
+                        return (
+                          <div 
+                            key={idx} 
+                            onClick={(e) => !userVoted ? handleVotePoll(e, post, idx) : e.preventDefault()}
+                            className={`relative h-10 rounded-lg border overflow-hidden flex items-center px-3 cursor-pointer transition-all ${userVoted ? 'border-transparent bg-gray-100' : 'border-gray-200 hover:border-cyan-400 bg-white hover:bg-cyan-50'}`}
+                          >
+                            {/* Progress Bar */}
+                            {userVoted && (
+                              <div 
+                                className={`absolute top-0 left-0 bottom-0 transition-all duration-500 ${isWinner ? 'bg-cyan-200' : 'bg-gray-200'}`} 
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            )}
+                            
+                            {/* Text & Stats */}
+                            <div className="relative z-10 flex justify-between w-full text-xs font-bold text-gray-800">
+                              <span>{opt.text}</span>
+                              {userVoted && <span>{percentage}%</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <p className="text-[10px] text-gray-400 font-bold text-right">{totalVotes} votes</p>
+                    </div>
+                  )}
+
                 </div>
+                
+                {/* Footer */}
                 <div className="flex items-center gap-6 pt-2 border-t border-gray-50">
                   <button onClick={(e) => handleLike(post, e)} className={`flex items-center gap-1.5 px-2 py-1 rounded-full transition-colors ${isLiked ? "bg-red-50 text-red-500" : "hover:bg-gray-50 text-gray-500"}`}><svg className={`w-5 h-5 ${isLiked ? "fill-current" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg><span className="text-xs font-bold">{post.votes || 0}</span></button>
                   <div className="flex items-center gap-1.5 text-gray-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg><span className="text-xs font-bold">{post.comments || 0}</span></div>
@@ -209,10 +272,9 @@ function FeedContent() {
   );
 }
 
-// MAIN EXPORT WITH SUSPENSE
 export default function Home() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading Feed...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading...</div>}>
       <FeedContent />
     </Suspense>
   );
