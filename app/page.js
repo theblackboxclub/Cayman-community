@@ -96,20 +96,38 @@ function FeedContent() {
     }
   };
 
-  // --- POLL VOTING LOGIC ---
-  const handleVotePoll = async (e, post, optionIndex) => {
+  // --- NEW POLL VOTING LOGIC (With Switching) ---
+  const handleVotePoll = async (e, post, newOptionIndex) => {
     e.preventDefault();
+    e.stopPropagation(); 
     if (!currentUser) return alert("Sign in to vote.");
 
-    // Check if already voted
-    const hasVoted = post.pollOptions.some(opt => opt.votes.includes(currentUser.uid));
-    if (hasVoted) return; // Prevent double voting
+    // 1. Find if they already voted and for which option
+    const currentVoteIndex = post.pollOptions.findIndex(opt => opt.votes.includes(currentUser.uid));
 
-    // Create deep copy of options to modify
-    const newOptions = [...post.pollOptions];
-    newOptions[optionIndex].votes.push(currentUser.uid);
+    // 2. Create deep copy of options to modify
+    const newOptions = post.pollOptions.map(opt => ({
+      ...opt,
+      votes: [...opt.votes] // Copy the votes array so we don't mutate state directly
+    }));
 
-    // Update Firestore
+    // 3. Logic for switching or adding vote
+    if (currentVoteIndex !== -1) {
+      // They already voted
+      if (currentVoteIndex === newOptionIndex) {
+         // Clicked same option. Do nothing.
+         return; 
+      }
+      // Remove from OLD option
+      newOptions[currentVoteIndex].votes = newOptions[currentVoteIndex].votes.filter(id => id !== currentUser.uid);
+      // Add to NEW option
+      newOptions[newOptionIndex].votes.push(currentUser.uid);
+    } else {
+      // First time voting
+      newOptions[newOptionIndex].votes.push(currentUser.uid);
+    }
+
+    // 4. Update Firestore
     const postRef = doc(db, "posts", post.id);
     await updateDoc(postRef, { pollOptions: newOptions });
   };
@@ -187,7 +205,7 @@ function FeedContent() {
           const commName = cleanName(post.community);
           const commData = communityIcons[commName] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
           
-          // POLL DATA
+          // POLL DATA CALCULATIONS
           const isPoll = post.type === 'poll' && post.pollOptions;
           const totalVotes = isPoll ? post.pollOptions.reduce((acc, opt) => acc + opt.votes.length, 0) : 0;
           const userVoted = isPoll ? post.pollOptions.some(opt => opt.votes.includes(currentUser?.uid)) : false;
@@ -215,30 +233,34 @@ function FeedContent() {
                     </div>
                   )}
 
-                  {/* POLL CONTENT */}
+                  {/* POLL CONTENT UI */}
                   {isPoll && (
                     <div className="mb-3 space-y-2">
                       {post.pollOptions.map((opt, idx) => {
                         const percentage = totalVotes > 0 ? Math.round((opt.votes.length / totalVotes) * 100) : 0;
                         const isWinner = totalVotes > 0 && percentage >= Math.max(...post.pollOptions.map(o => totalVotes > 0 ? (o.votes.length/totalVotes)*100 : 0));
+                        const isMyVote = opt.votes.includes(currentUser?.uid);
                         
                         return (
                           <div 
                             key={idx} 
-                            onClick={(e) => !userVoted ? handleVotePoll(e, post, idx) : e.preventDefault()}
-                            className={`relative h-10 rounded-lg border overflow-hidden flex items-center px-3 cursor-pointer transition-all ${userVoted ? 'border-transparent bg-gray-100' : 'border-gray-200 hover:border-cyan-400 bg-white hover:bg-cyan-50'}`}
+                            onClick={(e) => handleVotePoll(e, post, idx)}
+                            className={`relative h-10 rounded-lg border overflow-hidden flex items-center px-3 cursor-pointer transition-all ${isMyVote ? 'border-cyan-500 ring-1 ring-cyan-200' : 'border-gray-200 hover:border-cyan-400 bg-white hover:bg-cyan-50'}`}
                           >
                             {/* Progress Bar */}
                             {userVoted && (
                               <div 
-                                className={`absolute top-0 left-0 bottom-0 transition-all duration-500 ${isWinner ? 'bg-cyan-200' : 'bg-gray-200'}`} 
+                                className={`absolute top-0 left-0 bottom-0 transition-all duration-500 ${isWinner ? 'bg-cyan-100' : 'bg-gray-100'}`} 
                                 style={{ width: `${percentage}%` }}
                               ></div>
                             )}
                             
                             {/* Text & Stats */}
                             <div className="relative z-10 flex justify-between w-full text-xs font-bold text-gray-800">
-                              <span>{opt.text}</span>
+                              <span className="flex items-center gap-2">
+                                {isMyVote && <span className="text-cyan-600">✓</span>}
+                                {opt.text}
+                              </span>
                               {userVoted && <span>{percentage}%</span>}
                             </div>
                           </div>
