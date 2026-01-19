@@ -15,6 +15,7 @@ export default function AdminDashboard() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(''); // New error state
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -23,7 +24,7 @@ export default function AdminDashboard() {
         return;
       }
       
-      // Security Check: Only YOU can see this page
+      // Security Check
       if (user.uid !== ADMIN_UID) {
         alert("Access Denied: You are not the admin.");
         router.push('/');
@@ -37,57 +38,81 @@ export default function AdminDashboard() {
   }, []);
 
   const fetchReports = () => {
-    // Listen to "reports" collection (Real-time)
-    const q = query(collection(db, "reports"), orderBy("createdAt", "desc"));
-    
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const reportData = await Promise.all(snapshot.docs.map(async (reportDoc) => {
-        const data = reportDoc.data();
-        let targetContent = "Content deleted or not found";
-        
-        // Fetch the post content so you know what you are deleting
-        if (data.type === 'post' && data.targetId) {
-          const postSnap = await getDoc(doc(db, "posts", data.targetId));
-          if (postSnap.exists()) {
-             targetContent = postSnap.data().body || postSnap.data().title;
-          }
-        }
-
-        return {
-          id: reportDoc.id,
-          ...data,
-          targetContent
-        };
-      }));
+    try {
+      // Listen to "reports" collection
+      const q = query(collection(db, "reports"), orderBy("createdAt", "desc"));
       
-      setReports(reportData);
+      const unsubscribe = onSnapshot(q, async (snapshot) => {
+        const reportData = await Promise.all(snapshot.docs.map(async (reportDoc) => {
+          const data = reportDoc.data();
+          let targetContent = "Content deleted or not found";
+          
+          if (data.type === 'post' && data.targetId) {
+            try {
+              const postSnap = await getDoc(doc(db, "posts", data.targetId));
+              if (postSnap.exists()) {
+                 targetContent = postSnap.data().body || postSnap.data().title;
+              }
+            } catch (err) {
+              console.error("Error fetching post details", err);
+            }
+          }
+
+          return {
+            id: reportDoc.id,
+            ...data,
+            targetContent
+          };
+        }));
+        
+        setReports(reportData);
+        setLoading(false);
+      }, (error) => {
+        // --- THIS IS THE SAFETY CATCH ---
+        console.error("Admin Query Error:", error);
+        // If it's a permission error, show rules alert. If index, show index alert.
+        setErrorMsg(error.message);
+        setLoading(false);
+      });
+      
+      return () => unsubscribe();
+    } catch (err) {
+      setErrorMsg(err.message);
       setLoading(false);
-    });
-    
-    return () => unsubscribe();
+    }
   };
 
   const handleDeletePost = async (report) => {
     if(!confirm("Permanently delete this post?")) return;
     try {
-      // 1. Delete the Post
       await deleteDoc(doc(db, "posts", report.targetId));
-      // 2. Delete the Report (clean up)
       await deleteDoc(doc(db, "reports", report.id));
       alert("Post deleted.");
     } catch (error) {
-      console.error(error);
-      alert("Error deleting post.");
+      alert("Error deleting: " + error.message);
     }
   };
 
   const handleDismiss = async (reportId) => {
-    // Just delete the report, keep the post
     if(!confirm("Dismiss this report?")) return;
     await deleteDoc(doc(db, "reports", reportId));
   };
 
-  if (loading) return <div className="p-10 text-center">Loading Admin Panel...</div>;
+  if (loading) return (
+    <div className="p-10 text-center">
+      <p className="font-bold text-gray-500">Loading Admin Panel...</p>
+      <p className="text-xs text-gray-400 mt-2">If this takes long, check your Database Indexes.</p>
+    </div>
+  );
+
+  if (errorMsg) return (
+    <div className="p-10 text-center">
+      <h2 className="text-red-500 font-bold mb-2">Error Loading Dashboard</h2>
+      <p className="text-sm bg-gray-100 p-4 rounded">{errorMsg}</p>
+      <button onClick={() => window.location.reload()} className="mt-4 bg-black text-white px-4 py-2 rounded">Retry</button>
+    </div>
+  );
+
   if (!isAdmin) return null;
 
   return (
