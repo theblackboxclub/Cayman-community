@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { db, auth, storage } from '../firebase'; 
+import { db, auth, storage } from '../../firebase'; // FIXED: Added ../ to reach the main folder
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -125,7 +125,7 @@ export default function CreatePost() {
         {/* Type Selector */}
         <div className="flex bg-gray-200 p-1 rounded-xl mb-6">
            <button onClick={() => setActiveTab('text')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${activeTab === 'text' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}>Text</button>
-           <button onClick={() => fileInputRef.current.click()} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${activeTab === 'image' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}>Image 📷</button>
+           <button onClick={() => fileInputRef.current?.click()} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${activeTab === 'image' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}>Image 📷</button>
            <button onClick={() => setActiveTab('poll')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${activeTab === 'poll' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}>Poll 📊</button>
         </div>
 
