@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { db, auth, storage } from '../../firebase';
+import { db, auth, storage } from '../firebase'; // <--- CHANGED to ../ (One step up)
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -96,7 +96,7 @@ export default function CreatePost() {
         author: user.displayName || "Anonymous",
         type: activeTab, // 'post' or 'poll'
         mediaUrl: mediaUrl,
-        linkUrl: linkUrl.trim() || null, // Save the link
+        linkUrl: linkUrl.trim() || null, 
         pollOptions: finalPollData,
         votes: 0,
         comments: 0,
