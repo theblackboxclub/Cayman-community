@@ -96,38 +96,28 @@ function FeedContent() {
     }
   };
 
-  // --- NEW POLL VOTING LOGIC (With Switching) ---
+  // --- POLL VOTING LOGIC (With Switching) ---
   const handleVotePoll = async (e, post, newOptionIndex) => {
     e.preventDefault();
     e.stopPropagation(); 
     if (!currentUser) return alert("Sign in to vote.");
 
-    // 1. Find if they already voted and for which option
     const currentVoteIndex = post.pollOptions.findIndex(opt => opt.votes.includes(currentUser.uid));
 
-    // 2. Create deep copy of options to modify
+    // Create deep copy
     const newOptions = post.pollOptions.map(opt => ({
       ...opt,
-      votes: [...opt.votes] // Copy the votes array so we don't mutate state directly
+      votes: [...opt.votes]
     }));
 
-    // 3. Logic for switching or adding vote
     if (currentVoteIndex !== -1) {
-      // They already voted
-      if (currentVoteIndex === newOptionIndex) {
-         // Clicked same option. Do nothing.
-         return; 
-      }
-      // Remove from OLD option
+      if (currentVoteIndex === newOptionIndex) return; // Clicked same option
       newOptions[currentVoteIndex].votes = newOptions[currentVoteIndex].votes.filter(id => id !== currentUser.uid);
-      // Add to NEW option
       newOptions[newOptionIndex].votes.push(currentUser.uid);
     } else {
-      // First time voting
       newOptions[newOptionIndex].votes.push(currentUser.uid);
     }
 
-    // 4. Update Firestore
     const postRef = doc(db, "posts", post.id);
     await updateDoc(postRef, { pollOptions: newOptions });
   };
@@ -205,7 +195,6 @@ function FeedContent() {
           const commName = cleanName(post.community);
           const commData = communityIcons[commName] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
           
-          // POLL DATA CALCULATIONS
           const isPoll = post.type === 'poll' && post.pollOptions;
           const totalVotes = isPoll ? post.pollOptions.reduce((acc, opt) => acc + opt.votes.length, 0) : 0;
           const userVoted = isPoll ? post.pollOptions.some(opt => opt.votes.includes(currentUser?.uid)) : false;
@@ -227,10 +216,29 @@ function FeedContent() {
                   <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
                   
                   {/* IMAGE CONTENT */}
-                  {post.type === 'image' && post.mediaUrl && (
+                  {post.mediaUrl && (
                     <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 h-56 relative shadow-inner">
                       <img src={post.mediaUrl} className="w-full h-full object-cover" />
                     </div>
+                  )}
+
+                  {/* LINK CONTENT (New!) */}
+                  {post.linkUrl && (
+                    <a 
+                      href={post.linkUrl.startsWith('http') ? post.linkUrl : `https://${post.linkUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()} 
+                      className="block mb-3 bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center gap-3 hover:bg-blue-100 transition group"
+                    >
+                      <div className="bg-blue-200 p-2 rounded-full text-blue-600 group-hover:bg-blue-300 transition">
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                         <p className="text-xs font-bold text-blue-900 truncate">{post.linkUrl}</p>
+                         <p className="text-[10px] text-blue-500">Tap to open external link</p>
+                      </div>
+                    </a>
                   )}
 
                   {/* POLL CONTENT UI */}
@@ -291,13 +299,5 @@ function FeedContent() {
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg><span className="text-[10px] mt-1">Inbox</span></Link>
       </div>
     </div>
-  );
-}
-
-export default function Home() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading...</div>}>
-      <FeedContent />
-    </Suspense>
   );
 }
