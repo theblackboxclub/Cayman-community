@@ -8,6 +8,10 @@ import {
   collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc 
 } from 'firebase/firestore';
 
+// --- CRITICAL FIX: FORCE DYNAMIC RENDERING ---
+// This tells Next.js: "Don't try to build this statically. It changes live!"
+export const dynamic = 'force-dynamic';
+
 // --- HELPERS ---
 const getAvatarColor = (name) => {
   if (!name) return 'bg-gray-400';
@@ -96,7 +100,6 @@ function FeedContent() {
     }
   };
 
-  // --- POLL VOTING LOGIC (With Switching) ---
   const handleVotePoll = async (e, post, newOptionIndex) => {
     e.preventDefault();
     e.stopPropagation(); 
@@ -104,14 +107,13 @@ function FeedContent() {
 
     const currentVoteIndex = post.pollOptions.findIndex(opt => opt.votes.includes(currentUser.uid));
 
-    // Create deep copy
     const newOptions = post.pollOptions.map(opt => ({
       ...opt,
       votes: [...opt.votes]
     }));
 
     if (currentVoteIndex !== -1) {
-      if (currentVoteIndex === newOptionIndex) return; // Clicked same option
+      if (currentVoteIndex === newOptionIndex) return; 
       newOptions[currentVoteIndex].votes = newOptions[currentVoteIndex].votes.filter(id => id !== currentUser.uid);
       newOptions[newOptionIndex].votes.push(currentUser.uid);
     } else {
@@ -222,7 +224,7 @@ function FeedContent() {
                     </div>
                   )}
 
-                  {/* LINK CONTENT (New!) */}
+                  {/* LINK CONTENT */}
                   {post.linkUrl && (
                     <a 
                       href={post.linkUrl.startsWith('http') ? post.linkUrl : `https://${post.linkUrl}`}
@@ -299,5 +301,14 @@ function FeedContent() {
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg><span className="text-[10px] mt-1">Inbox</span></Link>
       </div>
     </div>
+  );
+}
+
+// MAIN EXPORT WITH SUSPENSE
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading Feed...</div>}>
+      <FeedContent />
+    </Suspense>
   );
 }
