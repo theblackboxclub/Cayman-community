@@ -15,8 +15,8 @@ export default function CreatePost() {
   // Shared State
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [community, setCommunity] = useState('General');
-  const [selectedFlair, setSelectedFlair] = useState(null); // <--- NEW: Flair State
+  const [community, setCommunity] = useState(''); // Default is empty to force selection
+  const [selectedFlair, setSelectedFlair] = useState(null);
   
   // Attachments
   const [imageFile, setImageFile] = useState(null);
@@ -30,7 +30,6 @@ export default function CreatePost() {
 
   const communities = ["General", "CaymanFitness", "IslandJobs", "AskLocals", "Events", "RealEstate"];
 
-  // --- FLAIR CONFIGURATION ---
   const flairs = [
     { name: "Question", emoji: "❓", color: "bg-orange-100 text-orange-700 border-orange-200" },
     { name: "Rant", emoji: "😤", color: "bg-red-100 text-red-700 border-red-200" },
@@ -70,6 +69,7 @@ export default function CreatePost() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!community) return alert("Please select a community.");
     if (!title.trim()) return alert("Please add a title.");
     setLoading(true);
 
@@ -77,7 +77,6 @@ export default function CreatePost() {
       let mediaUrl = null;
       let finalPollData = null;
 
-      // Safe check for storage
       if (imageFile) {
         if (!storage) throw new Error("Storage is not configured.");
         const storageRef = ref(storage, `posts/${user.uid}/${Date.now()}_${imageFile.name}`);
@@ -98,7 +97,7 @@ export default function CreatePost() {
         title: title,
         body: body,
         community: community,
-        flair: selectedFlair, // <--- SAVING FLAIR
+        flair: selectedFlair,
         userId: user.uid,
         author: user.displayName || "Anonymous",
         type: activeTab,
@@ -125,42 +124,75 @@ export default function CreatePost() {
       <div className="bg-white/90 backdrop-blur-md px-4 py-3 border-b border-gray-100 sticky top-0 flex justify-between items-center shadow-sm z-20">
         <button onClick={() => router.back()} className="text-gray-500 font-bold text-sm">Cancel</button>
         <h1 className="font-black text-lg text-gray-900">Create</h1>
-        <button onClick={handleSubmit} disabled={loading || !title.trim()} className="bg-black text-white px-6 py-2 rounded-full text-sm font-bold disabled:opacity-50 shadow-lg transition-transform active:scale-95">
+        {/* Disable button if no community or title */}
+        <button 
+          onClick={handleSubmit} 
+          disabled={loading || !title.trim() || !community} 
+          className="bg-black text-white px-6 py-2 rounded-full text-sm font-bold disabled:opacity-50 shadow-lg transition-transform active:scale-95"
+        >
           {loading ? "Posting..." : "Post"}
         </button>
       </div>
 
       <div className="max-w-xl mx-auto p-4">
-        {/* Top Row: Community & Tab Toggle */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2 bg-white p-2 rounded-full shadow-sm border border-gray-100">
-             <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-700 font-bold text-xs">c/</div>
-             <select className="bg-transparent font-bold text-sm text-gray-800 outline-none pr-4 cursor-pointer" value={community} onChange={(e) => setCommunity(e.target.value)}>
-               {communities.map(c => <option key={c} value={c}>{c}</option>)}
-             </select>
-          </div>
-          
-          <div className="flex bg-gray-100 p-1 rounded-full">
-             <button onClick={() => setActiveTab('post')} className={`px-4 py-1.5 text-xs font-bold rounded-full transition ${activeTab === 'post' ? 'bg-white shadow-sm text-black' : 'text-gray-400'}`}>📝 Post</button>
-             <button onClick={() => setActiveTab('poll')} className={`px-4 py-1.5 text-xs font-bold rounded-full transition ${activeTab === 'poll' ? 'bg-white shadow-sm text-black' : 'text-gray-400'}`}>📊 Poll</button>
-          </div>
-        </div>
-
-        <input type="text" placeholder="An interesting title..." className="w-full text-xl font-black placeholder-gray-300 outline-none bg-transparent mb-4 px-1" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
-
-        {/* FLAIR SELECTOR (NEW) */}
-        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-2">
-          {flairs.map((f) => (
-            <button
-              key={f.name}
-              onClick={() => setSelectedFlair(selectedFlair === f.name ? null : f.name)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedFlair === f.name ? f.color + " ring-2 ring-offset-1 ring-cyan-200" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+        
+        {/* Community Selector */}
+        <div className="mb-4">
+          <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wide">Select Community or Create Community</label>
+          <div className="relative">
+            <select 
+              className="w-full bg-white border border-gray-200 text-gray-900 text-sm font-bold rounded-xl px-4 py-3 outline-none appearance-none focus:ring-2 focus:ring-cyan-100 focus:border-cyan-300 transition shadow-sm"
+              value={community}
+              onChange={(e) => setCommunity(e.target.value)}
             >
-              {f.emoji} {f.name}
-            </button>
-          ))}
+              <option value="" disabled>Choose a community...</option>
+              {communities.map(c => <option key={c} value={c}>c/{c}</option>)}
+              <option value="create_new" disabled>+ Create New (Coming Soon)</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </div>
+          </div>
         </div>
 
+        {/* Title Input (Boxed) */}
+        <div className="mb-6">
+           <input 
+            type="text" 
+            placeholder="An interesting title..." 
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-cyan-100 transition"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
+           <button onClick={() => setActiveTab('post')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${activeTab === 'post' ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:bg-gray-200'}`}>📝 Post</button>
+           <button onClick={() => setActiveTab('poll')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${activeTab === 'poll' ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:bg-gray-200'}`}>📊 Poll</button>
+        </div>
+
+        {/* Tag/Flair Selector */}
+        <div className="mb-4">
+          <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Add or create a tag for this post/poll (Optional)</label>
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {flairs.map((f) => (
+              <button
+                key={f.name}
+                onClick={() => setSelectedFlair(selectedFlair === f.name ? null : f.name)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedFlair === f.name ? f.color + " ring-2 ring-offset-1 ring-cyan-200" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+              >
+                {f.emoji} {f.name}
+              </button>
+            ))}
+             <button className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-dashed border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition">
+               + Create
+             </button>
+          </div>
+        </div>
+
+        {/* Content Area */}
         <div className="bg-white p-4 rounded-3xl shadow-lg border border-gray-50 min-h-[300px] flex flex-col relative">
             <textarea placeholder={activeTab === 'poll' ? "Add context to your poll (optional)..." : "What's on your mind?"} className="w-full h-32 text-base text-gray-800 outline-none resize-none bg-transparent placeholder-gray-400 mb-4" value={body} onChange={(e) => setBody(e.target.value)} />
 
