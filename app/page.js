@@ -8,11 +8,18 @@ import {
   collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc 
 } from 'firebase/firestore';
 
-// --- CRITICAL FIX: FORCE DYNAMIC RENDERING ---
-// This tells Next.js: "Don't try to build this statically. It changes live!"
 export const dynamic = 'force-dynamic';
 
-// --- HELPERS ---
+// --- FLAIR MAP ---
+const flairColors = {
+  "Question": "bg-orange-100 text-orange-700 border-orange-200",
+  "Rant": "bg-red-100 text-red-700 border-red-200",
+  "News": "bg-blue-100 text-blue-700 border-blue-200",
+  "Buy/Sell": "bg-green-100 text-green-700 border-green-200",
+  "Alert": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "Review": "bg-purple-100 text-purple-700 border-purple-200"
+};
+
 const getAvatarColor = (name) => {
   if (!name) return 'bg-gray-400';
   const colors = ['bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-fuchsia-500', 'bg-pink-500', 'bg-rose-500'];
@@ -106,11 +113,7 @@ function FeedContent() {
     if (!currentUser) return alert("Sign in to vote.");
 
     const currentVoteIndex = post.pollOptions.findIndex(opt => opt.votes.includes(currentUser.uid));
-
-    const newOptions = post.pollOptions.map(opt => ({
-      ...opt,
-      votes: [...opt.votes]
-    }));
+    const newOptions = post.pollOptions.map(opt => ({ ...opt, votes: [...opt.votes] }));
 
     if (currentVoteIndex !== -1) {
       if (currentVoteIndex === newOptionIndex) return; 
@@ -196,7 +199,6 @@ function FeedContent() {
           const isLiked = post.likedBy?.includes(currentUser?.uid);
           const commName = cleanName(post.community);
           const commData = communityIcons[commName] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
-          
           const isPoll = post.type === 'poll' && post.pollOptions;
           const totalVotes = isPoll ? post.pollOptions.reduce((acc, opt) => acc + opt.votes.length, 0) : 0;
           const userVoted = isPoll ? post.pollOptions.some(opt => opt.votes.includes(currentUser?.uid)) : false;
@@ -204,6 +206,7 @@ function FeedContent() {
           return (
             <Link href={`/post/${post.id}`} key={post.id}>
               <div className="bg-white mb-3 rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all active:scale-[0.99] cursor-pointer">
+                
                 {/* Header */}
                 <div className="flex items-center text-xs text-gray-500 mb-2">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold mr-2 text-[12px] ${commData.color}`}>{commData.icon}</div>
@@ -214,17 +217,22 @@ function FeedContent() {
                 </div>
                 
                 <div className="pb-2">
+                  {/* FLAIR BADGE (NEW) */}
+                  {post.flair && flairColors[post.flair] && (
+                    <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider mb-2 border ${flairColors[post.flair]}`}>
+                      {post.flair}
+                    </span>
+                  )}
+
                   <h3 className="text-base font-bold text-gray-900 leading-snug mb-1.5">{post.title}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
                   
-                  {/* IMAGE CONTENT */}
                   {post.mediaUrl && (
                     <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 h-56 relative shadow-inner">
                       <img src={post.mediaUrl} className="w-full h-full object-cover" />
                     </div>
                   )}
 
-                  {/* LINK CONTENT */}
                   {post.linkUrl && (
                     <a 
                       href={post.linkUrl.startsWith('http') ? post.linkUrl : `https://${post.linkUrl}`}
@@ -243,7 +251,6 @@ function FeedContent() {
                     </a>
                   )}
 
-                  {/* POLL CONTENT UI */}
                   {isPoll && (
                     <div className="mb-3 space-y-2">
                       {post.pollOptions.map((opt, idx) => {
@@ -257,15 +264,9 @@ function FeedContent() {
                             onClick={(e) => handleVotePoll(e, post, idx)}
                             className={`relative h-10 rounded-lg border overflow-hidden flex items-center px-3 cursor-pointer transition-all ${isMyVote ? 'border-cyan-500 ring-1 ring-cyan-200' : 'border-gray-200 hover:border-cyan-400 bg-white hover:bg-cyan-50'}`}
                           >
-                            {/* Progress Bar */}
                             {userVoted && (
-                              <div 
-                                className={`absolute top-0 left-0 bottom-0 transition-all duration-500 ${isWinner ? 'bg-cyan-100' : 'bg-gray-100'}`} 
-                                style={{ width: `${percentage}%` }}
-                              ></div>
+                              <div className={`absolute top-0 left-0 bottom-0 transition-all duration-500 ${isWinner ? 'bg-cyan-100' : 'bg-gray-100'}`} style={{ width: `${percentage}%` }}></div>
                             )}
-                            
-                            {/* Text & Stats */}
                             <div className="relative z-10 flex justify-between w-full text-xs font-bold text-gray-800">
                               <span className="flex items-center gap-2">
                                 {isMyVote && <span className="text-cyan-600">✓</span>}
@@ -279,7 +280,6 @@ function FeedContent() {
                       <p className="text-[10px] text-gray-400 font-bold text-right">{totalVotes} votes</p>
                     </div>
                   )}
-
                 </div>
                 
                 {/* Footer */}
@@ -304,10 +304,9 @@ function FeedContent() {
   );
 }
 
-// MAIN EXPORT WITH SUSPENSE
 export default function Home() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading Feed...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading...</div>}>
       <FeedContent />
     </Suspense>
   );
