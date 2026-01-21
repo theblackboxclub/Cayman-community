@@ -4,66 +4,159 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { db, auth } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 
-export default function ChatList() {
+export default function ChatHub() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState(null);
-  const [chats, setChats] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('communities'); // 'communities' or 'private'
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  
+  // Creation State
+  const [newChatName, setNewChatName] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+
+  // Data State
+  const [myChats, setMyChats] = useState([]);
+
+  // Hardcoded Community Groups (Public)
+  const communityGroups = [
+    { id: "general_chat", name: "General Chat", icon: "🌴", description: "Island vibes for everyone." },
+    { id: "market_chat", name: "Buy & Sell", icon: "💰", description: "Marketplace discussions." },
+    { id: "nightlife_chat", name: "Nightlife", icon: "🥂", description: "What's happening tonight?" },
+    { id: "tech_chat", name: "Tech & Crypto", icon: "💻", description: "Developers and investors." },
+  ];
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (!user) return router.push('/signup');
-      setCurrentUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (!u) return router.push('/signup');
+      setUser(u);
 
-      // Listen for chats where user is a participant
-      const q = query(collection(db, "chats"), where("participants", "array-contains", user.uid));
-      const unsubscribeChats = onSnapshot(q, (snapshot) => {
-        const chatData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setChats(chatData);
-        setLoading(false);
+      // Listen for My Private Chats
+      const q = query(collection(db, "chats"), where("participants", "array-contains", u.uid));
+      const unsubChats = onSnapshot(q, (snapshot) => {
+        setMyChats(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
-      return () => unsubscribeChats();
+      return () => unsubChats();
     });
-    return () => unsubscribeAuth();
+    return () => unsubscribe();
   }, []);
 
+  const handleCreateChat = async () => {
+    if (!newChatName.trim()) return alert("Enter a name!");
+    
+    await addDoc(collection(db, "chats"), {
+      name: newChatName,
+      isPrivate: isPrivate,
+      participants: [user.uid], // Creator joins automatically
+      createdAt: serverTimestamp(),
+      lastMessage: "Chat created.",
+      type: "group"
+    });
+    
+    setShowCreateModal(false);
+    setNewChatName('');
+    setActiveTab('private'); // Switch to see new chat
+  };
+
   return (
-    <div className="min-h-screen bg-white pb-24">
+    // Blue & Sand Gradient Restored
+    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-orange-50/30 pb-24">
       
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-100 sticky top-0 bg-white/90 backdrop-blur-md z-10 flex justify-between items-center">
-        <h1 className="font-black text-2xl">Chats 💬</h1>
-        <button className="bg-black text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg" onClick={() => alert("Start chat from a User Profile!")}>+ New</button>
+      <div className="bg-white/80 backdrop-blur-md px-6 py-4 sticky top-0 z-50 border-b border-white/50 flex justify-between items-center shadow-sm">
+        <h1 className="font-black text-2xl text-cyan-900 tracking-tight">Circle<span className="text-orange-500">Chat</span></h1>
+        <button onClick={() => setShowCreateModal(true)} className="bg-cyan-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg hover:scale-105 transition">
+          + New Group
+        </button>
+      </div>
+
+      {/* Toggles */}
+      <div className="p-4">
+        <div className="bg-white/60 p-1 rounded-xl flex shadow-sm border border-white">
+          <button onClick={() => setActiveTab('communities')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'communities' ? 'bg-white shadow text-cyan-700' : 'text-gray-400'}`}>
+            Public Communities
+          </button>
+          <button onClick={() => setActiveTab('private')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'private' ? 'bg-white shadow text-cyan-700' : 'text-gray-400'}`}>
+            My Chats
+          </button>
+        </div>
       </div>
 
       {/* List */}
-      <div className="p-2">
-        {loading ? <div className="text-center p-10 text-gray-400">Loading chats...</div> : 
-         chats.length === 0 ? (
-           <div className="text-center py-20 text-gray-400">
-             <p className="font-bold text-lg mb-2">No chats yet 🦗</p>
-             <p className="text-sm">Go to <span className="font-bold text-black cursor-pointer" onClick={() => router.push('/connect')}>Connect</span> to find people!</p>
+      <div className="px-4 space-y-3">
+        {activeTab === 'communities' && (
+          <div className="animate-fade-in">
+             {communityGroups.map(group => (
+               <div key={group.id} onClick={() => router.push(`/chat/${group.id}`)} className="bg-white p-4 rounded-2xl shadow-sm border border-cyan-100 flex items-center gap-4 cursor-pointer hover:scale-[1.02] transition">
+                 <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center text-2xl shadow-inner">
+                   {group.icon}
+                 </div>
+                 <div className="flex-1">
+                   <h3 className="font-bold text-gray-900">{group.name}</h3>
+                   <p className="text-xs text-gray-500">{group.description}</p>
+                 </div>
+                 <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-300">
+                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                 </div>
+               </div>
+             ))}
+          </div>
+        )}
+
+        {activeTab === 'private' && (
+           <div className="animate-fade-in">
+             {myChats.length === 0 ? (
+               <div className="text-center py-10 text-gray-400">
+                 <p>No private chats yet.</p>
+                 <button onClick={() => router.push('/connect')} className="text-cyan-600 font-bold text-sm mt-2">Find people to message!</button>
+               </div>
+             ) : (
+               myChats.map(chat => (
+                 <div key={chat.id} onClick={() => router.push(`/chat/${chat.id}`)} className="bg-white p-4 rounded-2xl shadow-sm border border-orange-100 flex items-center gap-4 cursor-pointer hover:scale-[1.02] transition">
+                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-lg shadow-inner">
+                     {chat.name?.[0] || "G"}
+                   </div>
+                   <div className="flex-1">
+                     <h3 className="font-bold text-gray-900">{chat.name || "Group Chat"}</h3>
+                     <p className="text-xs text-gray-400 truncate">{chat.lastMessage || "Start talking..."}</p>
+                   </div>
+                 </div>
+               ))
+             )}
            </div>
-         ) : (
-           chats.map(chat => (
-             <div key={chat.id} onClick={() => router.push(`/chat/${chat.id}`)} className="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl cursor-pointer transition border-b border-gray-50">
-               <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center text-cyan-700 font-bold text-lg">
-                 {chat.users?.find(id => id !== currentUser.uid)?.substring(0,2).toUpperCase() || "?"}
-               </div>
-               <div className="flex-1">
-                 <h3 className="font-bold text-gray-900">Chat</h3>
-                 <p className="text-xs text-gray-500 truncate">{chat.lastMessage || "No messages yet"}</p>
-               </div>
-               <span className="text-[10px] text-gray-300 font-bold">Open ›</span>
-             </div>
-           ))
-         )
-        }
+        )}
       </div>
 
-      {/* FIXED NAVIGATION BAR */}
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-scale-in">
+            <h2 className="font-black text-xl mb-4 text-gray-900">Create Group Chat</h2>
+            
+            <input 
+              type="text" 
+              placeholder="Group Name (e.g. Sunday Brunch)" 
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-bold text-sm mb-4 outline-none focus:ring-2 focus:ring-cyan-200"
+              value={newChatName}
+              onChange={(e) => setNewChatName(e.target.value)}
+              autoFocus
+            />
+
+            <div className="flex gap-2 mb-6">
+               <button onClick={() => setIsPrivate(false)} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${!isPrivate ? 'bg-cyan-50 border-cyan-200 text-cyan-700' : 'border-gray-100 text-gray-400'}`}>Public Group</button>
+               <button onClick={() => setIsPrivate(true)} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${isPrivate ? 'bg-orange-50 border-orange-200 text-orange-700' : 'border-gray-100 text-gray-400'}`}>Private Group</button>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowCreateModal(false)} className="flex-1 py-3 rounded-xl font-bold text-sm text-gray-500 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleCreateChat} className="flex-1 py-3 rounded-xl font-bold text-sm bg-black text-white shadow-lg hover:scale-105 transition">Create</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CORRECT NAVIGATION BAR (No Explore) */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <button onClick={() => router.push('/')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg><span className="text-[10px] mt-1">Home</span></button>
         <button onClick={() => router.push('/connect')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span className="text-[10px] mt-1">Connect</span></button>
