@@ -7,16 +7,35 @@ import {
   doc, getDoc, updateDoc, collection, query, where, getDocs, limit 
 } from 'firebase/firestore';
 
-// --- CONFIGURATION ---
+// --- MEGA VIBES LIST ---
 const VIBES = [
+  // Tech & Biz
   { id: "tech", label: "Tech & Coding", icon: "💻", color: "bg-blue-100 text-blue-700" },
+  { id: "crypto", label: "Crypto & Stocks", icon: "📈", color: "bg-yellow-100 text-yellow-700" },
+  { id: "business", label: "Business/ entrepreneur", icon: "💼", color: "bg-gray-100 text-gray-700" },
+  { id: "realestate", label: "Real Estate", icon: "🏠", color: "bg-emerald-100 text-emerald-700" },
+  
+  // Island Life
+  { id: "beach", label: "Beach Bum", icon: "🏖️", color: "bg-cyan-100 text-cyan-700" },
+  { id: "boating", label: "Boating", icon: "🚤", color: "bg-blue-50 text-blue-600" },
+  { id: "diving", label: "Diving/Snorkel", icon: "🤿", color: "bg-indigo-100 text-indigo-700" },
+  { id: "fishing", label: "Fishing", icon: "🎣", color: "bg-teal-100 text-teal-700" },
+  
+  // Lifestyle
   { id: "gym", label: "Gym & Fitness", icon: "🏋️", color: "bg-orange-100 text-orange-700" },
-  { id: "crypto", label: "Crypto", icon: "₿", color: "bg-yellow-100 text-yellow-700" },
+  { id: "yoga", label: "Yoga & Wellness", icon: "🧘", color: "bg-rose-100 text-rose-700" },
   { id: "foodie", label: "Foodie", icon: "🌮", color: "bg-red-100 text-red-700" },
   { id: "party", label: "Nightlife", icon: "🥂", color: "bg-purple-100 text-purple-700" },
-  { id: "beach", label: "Beach Bum", icon: "🏖️", color: "bg-cyan-100 text-cyan-700" },
-  { id: "gaming", label: "Gaming", icon: "🎮", color: "bg-indigo-100 text-indigo-700" },
-  { id: "business", label: "Business", icon: "💼", color: "bg-gray-100 text-gray-700" },
+  { id: "420", label: "420 Friendly", icon: "🌿", color: "bg-green-100 text-green-700" },
+  
+  // Hobbies
+  { id: "gaming", label: "Gaming", icon: "🎮", color: "bg-indigo-50 text-indigo-600" },
+  { id: "cars", label: "Car Enthusiast", icon: "🏎️", color: "bg-red-50 text-red-600" },
+  { id: "photography", label: "Photography", icon: "📸", color: "bg-gray-200 text-gray-800" },
+  { id: "art", label: "Art & Design", icon: "🎨", color: "bg-pink-100 text-pink-700" },
+  { id: "music", label: "Music Lover", icon: "🎵", color: "bg-violet-100 text-violet-700" },
+  { id: "pets", label: "Pet Lover", icon: "🐶", color: "bg-amber-100 text-amber-700" },
+  { id: "travel", label: "Travel", icon: "✈️", color: "bg-sky-100 text-sky-700" },
 ];
 
 export default function ConnectPage() {
@@ -27,7 +46,6 @@ export default function ConnectPage() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
 
-  // 1. Load User & Their Vibes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (!u) return router.push('/signup');
@@ -40,29 +58,26 @@ export default function ConnectPage() {
         setMyVibes(snap.data().vibes);
         fetchMatches(snap.data().vibes, u.uid);
       } else {
-        setIsEditing(true); // Force them to pick vibes if they have none
+        setIsEditing(true); 
         setLoading(false);
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // 2. toggle a vibe selection
   const toggleVibe = (vibeId) => {
     if (myVibes.includes(vibeId)) {
       setMyVibes(myVibes.filter(id => id !== vibeId));
     } else {
-      if (myVibes.length >= 5) return alert("Pick your top 5!");
+      if (myVibes.length >= 8) return alert("Pick your top 8 max!");
       setMyVibes([...myVibes, vibeId]);
     }
   };
 
-  // 3. Save Vibes & Find Matches
   const saveVibes = async () => {
     if (myVibes.length === 0) return alert("Pick at least 1 vibe!");
     setLoading(true);
     
-    // Save to Firestore
     const userRef = doc(db, "users", user.uid);
     await updateDoc(userRef, { vibes: myVibes });
     
@@ -70,16 +85,10 @@ export default function ConnectPage() {
     fetchMatches(myVibes, user.uid);
   };
 
-  // 4. Algorithm to Find Matches
   const fetchMatches = async (vibes, currentUid) => {
     try {
       const usersRef = collection(db, "users");
-      const q = query(
-        usersRef, 
-        where("vibes", "array-contains-any", vibes),
-        limit(20) 
-      );
-
+      const q = query(usersRef, where("vibes", "array-contains-any", vibes), limit(20));
       const snap = await getDocs(q);
       
       const foundUsers = snap.docs
@@ -99,7 +108,6 @@ export default function ConnectPage() {
     }
   };
 
-  // 5. Start a Chat
   const startChat = async (targetUser) => {
      router.push(`/user/${targetUser.username}`);
   };
@@ -109,47 +117,32 @@ export default function ConnectPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24">
       
-      {/* Header */}
       <div className="bg-white/90 backdrop-blur-md px-6 py-4 sticky top-0 z-50 border-b border-gray-100 flex justify-between items-center">
         <h1 className="font-black text-xl text-gray-900">Vibe Match ⚡</h1>
         {!isEditing && (
-          <button onClick={() => setIsEditing(true)} className="text-xs font-bold text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-full">
-            Edit My Vibes
-          </button>
+          <button onClick={() => setIsEditing(true)} className="text-xs font-bold text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-full">Edit Vibes</button>
         )}
       </div>
 
       <div className="max-w-md mx-auto p-4">
-
-        {/* --- EDIT MODE (Selector) --- */}
         {isEditing ? (
           <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-50 animate-fade-in">
             <h2 className="text-lg font-bold text-gray-800 mb-2">What are you into?</h2>
-            <p className="text-sm text-gray-400 mb-6">Select up to 5 tags to find likeminded locals.</p>
-            
+            <p className="text-sm text-gray-400 mb-6">Select tags to find likeminded locals.</p>
             <div className="grid grid-cols-2 gap-3 mb-6">
               {VIBES.map(v => {
                 const isSelected = myVibes.includes(v.id);
                 return (
-                  <button 
-                    key={v.id}
-                    onClick={() => toggleVibe(v.id)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${isSelected ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200 ring-offset-1' : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-                  >
+                  <button key={v.id} onClick={() => toggleVibe(v.id)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${isSelected ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200 ring-offset-1' : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
                     <span className="text-xl">{v.icon}</span>
                     <span className={isSelected ? 'text-cyan-900' : 'text-gray-500'}>{v.label}</span>
                   </button>
                 )
               })}
             </div>
-
-            <button onClick={saveVibes} className="w-full bg-black text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:scale-[1.02] transition">
-              Find Matches 🚀
-            </button>
+            <button onClick={saveVibes} className="w-full bg-black text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:scale-[1.02] transition">Find Matches 🚀</button>
           </div>
         ) : (
-          
-          /* --- MATCH MODE (Grid) --- */
           <div className="space-y-4">
             {matches.length === 0 ? (
                <div className="text-center py-10 text-gray-400">
@@ -162,43 +155,28 @@ export default function ConnectPage() {
                  <div key={match.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition">
                     <div className="flex items-center gap-3">
                        <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden border border-gray-100">
-                          {match.profilePic ? (
-                            <img src={match.profilePic} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-cyan-100 text-cyan-700 font-bold text-lg">
-                              {match.username?.[0]?.toUpperCase()}
-                            </div>
-                          )}
+                          {match.profilePic ? <img src={match.profilePic} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-cyan-100 text-cyan-700 font-bold text-lg">{match.username?.[0]?.toUpperCase()}</div>}
                        </div>
                        <div>
                           <h3 className="font-bold text-gray-900">{match.username}</h3>
-                          <div className="flex gap-1 mt-1">
-                             {match.commonVibes.map(vid => {
+                          <div className="flex flex-wrap gap-1 mt-1 max-w-[150px]">
+                             {match.commonVibes.slice(0,3).map(vid => {
                                const vConfig = VIBES.find(v => v.id === vid);
-                               return <span key={vid} title={vConfig?.label} className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-md">{vConfig?.icon}</span>
+                               return <span key={vid} className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-md">{vConfig?.icon}</span>
                              })}
-                             <span className="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full ml-1">
-                               {match.score} Match
-                             </span>
+                             {match.commonVibes.length > 3 && <span className="text-[10px] text-gray-400">+{match.commonVibes.length - 3}</span>}
                           </div>
                        </div>
                     </div>
-                    
-                    <button 
-                      onClick={() => startChat(match)}
-                      className="bg-black text-white p-2 rounded-full shadow hover:scale-110 transition"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                    </button>
+                    <button onClick={() => startChat(match)} className="bg-black text-white p-2 rounded-full shadow hover:scale-110 transition"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg></button>
                  </div>
                ))
             )}
           </div>
         )}
-
       </div>
       
-      {/* Bottom Nav */}
+      {/* NAV BAR FIX */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <button onClick={() => router.push('/')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg><span className="text-[10px] mt-1">Home</span></button>
         <button onClick={() => router.push('/connect')} className="flex flex-col items-center text-black"><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span className="text-[10px] font-bold mt-1">Connect</span></button>
