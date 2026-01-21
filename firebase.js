@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage"; 
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -12,18 +12,22 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Initialize Firebase (Singleton pattern)
+// Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Safe Storage Initialization
-// This prevents the build from crashing if the Storage Bucket variable is missing
-let storage;
+// --- SAFE STORAGE INITIALIZATION ---
+// This prevents the build from crashing if the environment variable is missing
+let storage = null;
 try {
-  storage = getStorage(app);
+  if (firebaseConfig.storageBucket) {
+    storage = getStorage(app);
+  } else {
+    console.warn("⚠️ Storage Bucket not defined in environment variables.");
+  }
 } catch (error) {
-  console.warn("Firebase Storage failed to initialize. Check environment variables.");
+  console.warn("⚠️ Failed to initialize storage:", error);
 }
 
 export { auth, db, storage };
