@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-// 👇 THIS IS THE FIX: Double dots to reach the root folder
 import { db, auth, storage } from '../../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -17,6 +16,7 @@ export default function CreatePost() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [community, setCommunity] = useState('General');
+  const [selectedFlair, setSelectedFlair] = useState(null); // <--- NEW: Flair State
   
   // Attachments
   const [imageFile, setImageFile] = useState(null);
@@ -29,6 +29,16 @@ export default function CreatePost() {
   const [pollOptions, setPollOptions] = useState(['', '', '', '']); 
 
   const communities = ["General", "CaymanFitness", "IslandJobs", "AskLocals", "Events", "RealEstate"];
+
+  // --- FLAIR CONFIGURATION ---
+  const flairs = [
+    { name: "Question", emoji: "❓", color: "bg-orange-100 text-orange-700 border-orange-200" },
+    { name: "Rant", emoji: "😤", color: "bg-red-100 text-red-700 border-red-200" },
+    { name: "News", emoji: "📰", color: "bg-blue-100 text-blue-700 border-blue-200" },
+    { name: "Buy/Sell", emoji: "💰", color: "bg-green-100 text-green-700 border-green-200" },
+    { name: "Alert", emoji: "🚨", color: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+    { name: "Review", emoji: "⭐", color: "bg-purple-100 text-purple-700 border-purple-200" },
+  ];
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -88,6 +98,7 @@ export default function CreatePost() {
         title: title,
         body: body,
         community: community,
+        flair: selectedFlair, // <--- SAVING FLAIR
         userId: user.uid,
         author: user.displayName || "Anonymous",
         type: activeTab,
@@ -120,18 +131,34 @@ export default function CreatePost() {
       </div>
 
       <div className="max-w-xl mx-auto p-4">
-        <div className="flex items-center gap-2 mb-4 bg-white p-2 rounded-full shadow-sm border border-gray-100 w-fit">
-           <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-700 font-bold text-xs">c/</div>
-           <select className="bg-transparent font-bold text-sm text-gray-800 outline-none pr-4 cursor-pointer" value={community} onChange={(e) => setCommunity(e.target.value)}>
-             {communities.map(c => <option key={c} value={c}>{c}</option>)}
-           </select>
+        {/* Top Row: Community & Tab Toggle */}
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2 bg-white p-2 rounded-full shadow-sm border border-gray-100">
+             <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-700 font-bold text-xs">c/</div>
+             <select className="bg-transparent font-bold text-sm text-gray-800 outline-none pr-4 cursor-pointer" value={community} onChange={(e) => setCommunity(e.target.value)}>
+               {communities.map(c => <option key={c} value={c}>{c}</option>)}
+             </select>
+          </div>
+          
+          <div className="flex bg-gray-100 p-1 rounded-full">
+             <button onClick={() => setActiveTab('post')} className={`px-4 py-1.5 text-xs font-bold rounded-full transition ${activeTab === 'post' ? 'bg-white shadow-sm text-black' : 'text-gray-400'}`}>📝 Post</button>
+             <button onClick={() => setActiveTab('poll')} className={`px-4 py-1.5 text-xs font-bold rounded-full transition ${activeTab === 'poll' ? 'bg-white shadow-sm text-black' : 'text-gray-400'}`}>📊 Poll</button>
+          </div>
         </div>
 
-        <input type="text" placeholder="An interesting title..." className="w-full text-xl font-black placeholder-gray-300 outline-none bg-transparent mb-6 px-1" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+        <input type="text" placeholder="An interesting title..." className="w-full text-xl font-black placeholder-gray-300 outline-none bg-transparent mb-4 px-1" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
 
-        <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
-           <button onClick={() => setActiveTab('post')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${activeTab === 'post' ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:bg-gray-200'}`}>📝 Post</button>
-           <button onClick={() => setActiveTab('poll')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${activeTab === 'poll' ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:bg-gray-200'}`}>📊 Poll</button>
+        {/* FLAIR SELECTOR (NEW) */}
+        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-2">
+          {flairs.map((f) => (
+            <button
+              key={f.name}
+              onClick={() => setSelectedFlair(selectedFlair === f.name ? null : f.name)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedFlair === f.name ? f.color + " ring-2 ring-offset-1 ring-cyan-200" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+            >
+              {f.emoji} {f.name}
+            </button>
+          ))}
         </div>
 
         <div className="bg-white p-4 rounded-3xl shadow-lg border border-gray-50 min-h-[300px] flex flex-col relative">
