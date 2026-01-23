@@ -60,12 +60,13 @@ export default function ChatHub() {
   };
 
   return (
-    // Blue & Sand Gradient Restored
+    // Blue & Sand Gradient Background
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-orange-50/30 pb-24">
       
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md px-6 py-4 sticky top-0 z-50 border-b border-white/50 flex justify-between items-center shadow-sm">
-        <h1 className="font-black text-2xl text-cyan-900 tracking-tight">Circle<span className="text-orange-500">Chat</span></h1>
+        {/* UPDATED: "Chat" is now Blue (cyan-600) to match CircleCayman branding */}
+        <h1 className="font-black text-2xl text-cyan-900 tracking-tight">Circle<span className="text-cyan-600">Chat</span></h1>
         <button onClick={() => setShowCreateModal(true)} className="bg-cyan-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg hover:scale-105 transition">
           + New Group
         </button>
