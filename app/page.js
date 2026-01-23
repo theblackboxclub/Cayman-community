@@ -10,7 +10,6 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-// --- VISUAL CONFIGURATION ---
 const flairColors = {
   "Question": "bg-orange-100 text-orange-700 border-orange-200",
   "Rant": "bg-red-100 text-red-700 border-red-200",
@@ -57,7 +56,6 @@ function FeedContent() {
   const communities = Object.keys(communityIcons);
   communities.unshift("All");
 
-  // 1. Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -76,7 +74,6 @@ function FeedContent() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Fetch Posts (Realtime)
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -91,7 +88,7 @@ function FeedContent() {
     return () => unsubscribe();
   }, []);
 
-  // --- UPDATED HANDLE LIKE (WITH NOTIFICATIONS) ---
+  // --- FIXED LIKE HANDLER ---
   const handleLike = async (post, e) => {
     e.preventDefault(); 
     if (!currentUser) return alert("Sign in to vote.");
@@ -99,42 +96,53 @@ function FeedContent() {
     const postRef = doc(db, "posts", post.id);
     const isLiked = post.likedBy?.includes(currentUser.uid);
 
+    // 1. Optimistic / Immediate DB Update
     if (isLiked) {
-      // Unlike
       await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(currentUser.uid) });
     } else {
-      // Like
       await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(currentUser.uid) });
       
-      // SEND NOTIFICATION (Only if liking someone else's post)
+      // 2. Safe Notification (Won't block the like if it fails)
       if (post.userId !== currentUser.uid) {
-        await addDoc(collection(db, "notifications"), {
-          toUserId: post.userId, // The author of the post
-          fromUserId: currentUser.uid, // The person liking
-          fromName: currentUser.displayName || "Someone",
-          type: 'like',
-          postId: post.id,
-          postTitle: post.title || "your post",
-          read: false,
-          createdAt: serverTimestamp()
-        });
+        try {
+          await addDoc(collection(db, "notifications"), {
+            toUserId: post.userId,
+            fromUserId: currentUser.uid,
+            fromName: currentUser.displayName || "Someone",
+            type: 'like',
+            postId: post.id,
+            postTitle: post.title || "your post",
+            read: false,
+            createdAt: serverTimestamp()
+          });
+        } catch (err) {
+          console.error("Notification failed", err);
+        }
       }
     }
   };
 
+  // --- FIXED POLL HANDLER ---
   const handleVotePoll = async (e, post, newOptionIndex) => {
     e.preventDefault();
     e.stopPropagation(); 
     if (!currentUser) return alert("Sign in to vote.");
 
-    const currentVoteIndex = post.pollOptions.findIndex(opt => opt.votes.includes(currentUser.uid));
-    const newOptions = post.pollOptions.map(opt => ({ ...opt, votes: [...opt.votes] }));
+    // Safe copy of options ensuring 'votes' array exists
+    const newOptions = post.pollOptions.map(opt => ({
+      ...opt,
+      votes: opt.votes ? [...opt.votes] : []
+    }));
+
+    const currentVoteIndex = newOptions.findIndex(opt => opt.votes.includes(currentUser.uid));
 
     if (currentVoteIndex !== -1) {
-      if (currentVoteIndex === newOptionIndex) return; 
+      // User switching vote
+      if (currentVoteIndex === newOptionIndex) return; // Clicked same one, do nothing
       newOptions[currentVoteIndex].votes = newOptions[currentVoteIndex].votes.filter(id => id !== currentUser.uid);
       newOptions[newOptionIndex].votes.push(currentUser.uid);
     } else {
+      // New vote
       newOptions[newOptionIndex].votes.push(currentUser.uid);
     }
 
@@ -214,15 +222,18 @@ function FeedContent() {
           const isLiked = post.likedBy?.includes(currentUser?.uid);
           const commName = cleanName(post.community);
           const commData = communityIcons[commName] || { icon: "🌊", color: "bg-cyan-100 text-cyan-800" };
+          
+          // POLL LOGIC
           const isPoll = post.type === 'poll' && post.pollOptions;
-          const totalVotes = isPoll ? post.pollOptions.reduce((acc, opt) => acc + opt.votes.length, 0) : 0;
-          const userVoted = isPoll ? post.pollOptions.some(opt => opt.votes.includes(currentUser?.uid)) : false;
+          // Ensure votes is treated as array even if missing
+          const totalVotes = isPoll ? post.pollOptions.reduce((acc, opt) => acc + (opt.votes ? opt.votes.length : 0), 0) : 0;
+          const userVoted = isPoll ? post.pollOptions.some(opt => opt.votes && opt.votes.includes(currentUser?.uid)) : false;
 
           return (
             <Link href={`/post/${post.id}`} key={post.id}>
               <div className="bg-white mb-3 rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all active:scale-[0.99] cursor-pointer">
                 
-                {/* Post Header */}
+                {/* Header */}
                 <div className="flex items-center text-xs text-gray-500 mb-2">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold mr-2 text-[12px] ${commData.color}`}>{commData.icon}</div>
                   <span className="font-bold text-gray-900 mr-1">{commName}</span>
@@ -232,7 +243,6 @@ function FeedContent() {
                 </div>
                 
                 <div className="pb-2">
-                  {/* FLAIR BADGE */}
                   {post.flair && flairColors[post.flair] && (
                     <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider mb-2 border ${flairColors[post.flair]}`}>
                       {post.flair}
@@ -242,14 +252,12 @@ function FeedContent() {
                   <h3 className="text-base font-bold text-gray-900 leading-snug mb-1.5">{post.title}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
                   
-                  {/* Images */}
                   {post.mediaUrl && (
                     <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 h-56 relative shadow-inner">
                       <img src={post.mediaUrl} className="w-full h-full object-cover" />
                     </div>
                   )}
 
-                  {/* Links */}
                   {post.linkUrl && (
                     <a 
                       href={post.linkUrl.startsWith('http') ? post.linkUrl : `https://${post.linkUrl}`}
@@ -272,9 +280,9 @@ function FeedContent() {
                   {isPoll && (
                     <div className="mb-3 space-y-2">
                       {post.pollOptions.map((opt, idx) => {
-                        const percentage = totalVotes > 0 ? Math.round((opt.votes.length / totalVotes) * 100) : 0;
-                        const isWinner = totalVotes > 0 && percentage >= Math.max(...post.pollOptions.map(o => totalVotes > 0 ? (o.votes.length/totalVotes)*100 : 0));
-                        const isMyVote = opt.votes.includes(currentUser?.uid);
+                        const voteCount = opt.votes ? opt.votes.length : 0;
+                        const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                        const isMyVote = opt.votes && opt.votes.includes(currentUser?.uid);
                         
                         return (
                           <div 
@@ -283,7 +291,7 @@ function FeedContent() {
                             className={`relative h-10 rounded-lg border overflow-hidden flex items-center px-3 cursor-pointer transition-all ${isMyVote ? 'border-cyan-500 ring-1 ring-cyan-200' : 'border-gray-200 hover:border-cyan-400 bg-white hover:bg-cyan-50'}`}
                           >
                             {userVoted && (
-                              <div className={`absolute top-0 left-0 bottom-0 transition-all duration-500 ${isWinner ? 'bg-cyan-100' : 'bg-gray-100'}`} style={{ width: `${percentage}%` }}></div>
+                              <div className="absolute top-0 left-0 bottom-0 bg-cyan-100 transition-all duration-500" style={{ width: `${percentage}%` }}></div>
                             )}
                             <div className="relative z-10 flex justify-between w-full text-xs font-bold text-gray-800">
                               <span className="flex items-center gap-2">
@@ -311,7 +319,7 @@ function FeedContent() {
         })}
       </div>
 
-      {/* FIXED NAVIGATION BAR */}
+      {/* Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <button onClick={() => { setSelectedCommunity("All"); setSearchQuery(""); window.history.pushState({}, '', '/'); }} className="flex flex-col items-center text-black"><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg><span className="text-[10px] font-bold mt-1">Home</span></button>
         <button onClick={() => router.push('/connect')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span className="text-[10px] mt-1">Connect</span></button>
@@ -320,13 +328,5 @@ function FeedContent() {
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg><span className="text-[10px] mt-1">Inbox</span></Link>
       </div>
     </div>
-  );
-}
-
-export default function Home() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading...</div>}>
-      <FeedContent />
-    </Suspense>
   );
 }
