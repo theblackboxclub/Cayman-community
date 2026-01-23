@@ -6,10 +6,10 @@ import { db, auth } from '../../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 
-export default function InboxPage() {
+export default function ActivityInbox() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [chats, setChats] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,80 +17,77 @@ export default function InboxPage() {
       if (!u) return router.push('/signup');
       setUser(u);
 
-      // Fetch all chats (DMs and Groups) ordered by time
+      // Listen for Notifications where 'toUserId' is ME
+      // Note: If you get an index error in console, click the link provided in the console to build it.
       const q = query(
-        collection(db, "chats"), 
-        where("participants", "array-contains", u.uid),
-        orderBy("createdAt", "desc") // Ensure you have an index for this, or remove orderBy if it errors
+        collection(db, "notifications"), 
+        where("toUserId", "==", u.uid),
+        orderBy("createdAt", "desc")
       );
 
-      const unsubChats = onSnapshot(q, (snapshot) => {
-        const chatList = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setChats(chatList);
+      const unsubNotes = onSnapshot(q, (snapshot) => {
+        const notes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setNotifications(notes);
         setLoading(false);
       });
 
-      return () => unsubChats();
+      return () => unsubNotes();
     });
     return () => unsubscribe();
   }, []);
+
+  // Helper to format notification text
+  const getNotificationText = (note) => {
+    if (note.type === 'like') return `liked your post: "${note.postTitle}"`;
+    if (note.type === 'comment') return `commented: "${note.commentText}"`;
+    if (note.type === 'reply') return `replied to you: "${note.commentText}"`;
+    return "interacted with you.";
+  };
 
   return (
     <div className="min-h-screen bg-white pb-24">
       
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-100 sticky top-0 bg-white/90 backdrop-blur-md z-10">
-        <h1 className="font-black text-2xl text-gray-900">Inbox</h1>
+        <h1 className="font-black text-2xl text-cyan-900">Activity 🔔</h1>
       </div>
 
-      {/* Message List */}
+      {/* Notification List */}
       <div className="p-2">
         {loading ? (
-          <div className="text-center p-10 text-gray-400 font-bold">Loading...</div>
-        ) : chats.length === 0 ? (
+          <div className="text-center p-10 text-gray-400 font-bold">Loading activity...</div>
+        ) : notifications.length === 0 ? (
           <div className="text-center py-20 text-gray-400">
             <p className="text-4xl mb-2">📭</p>
-            <p className="font-bold text-lg text-gray-600">No messages yet</p>
-            <p className="text-sm mb-4">Join a community or match with someone!</p>
-            <button onClick={() => router.push('/connect')} className="bg-cyan-600 text-white px-6 py-2 rounded-full font-bold text-sm">Find People</button>
+            <p className="font-bold text-lg text-gray-600">No activity yet</p>
+            <p className="text-sm mb-4">When people like or comment, you'll see it here.</p>
           </div>
         ) : (
           <div className="space-y-1">
-            {chats.map(chat => {
-              // Logic to determine chat name (Group name OR Other User's name)
-              const isGroup = chat.type === 'group';
-              const otherUserId = chat.participants?.find(uid => uid !== user?.uid);
-              const displayName = isGroup ? chat.name : (chat.otherUserName || "Private Chat"); // Ideally you fetch the user profile here
-
-              return (
-                <div 
-                  key={chat.id} 
-                  onClick={() => router.push(`/chat/${chat.id}`)} 
-                  className="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl cursor-pointer transition border-b border-gray-50"
-                >
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shadow-sm ${isGroup ? 'bg-orange-100 text-orange-600' : 'bg-cyan-100 text-cyan-600'}`}>
-                    {isGroup ? (chat.name?.[0] || "G") : "👤"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center mb-1">
-                      <h3 className="font-bold text-gray-900 truncate">{displayName}</h3>
-                      {chat.lastMessageTime && <span className="text-[10px] text-gray-400">Recently</span>}
-                    </div>
-                    <p className={`text-xs truncate ${chat.unread ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
-                      {chat.lastMessage || "No messages yet"}
-                    </p>
-                  </div>
+            {notifications.map(note => (
+              <div 
+                key={note.id} 
+                onClick={() => router.push(`/post/${note.postId}`)} 
+                className={`flex items-center gap-3 p-4 hover:bg-cyan-50/50 rounded-2xl cursor-pointer transition border-b border-gray-50 ${!note.read ? 'bg-orange-50/30' : ''}`}
+              >
+                {/* Icon based on type */}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-sm border ${note.type === 'like' ? 'bg-red-100 border-red-200 text-red-500' : 'bg-blue-100 border-blue-200 text-blue-500'}`}>
+                  {note.type === 'like' ? '❤️' : '💬'}
                 </div>
-              );
-            })}
+                
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-900">
+                    <span className="font-bold">{note.fromName}</span> <span className="text-gray-600">{getNotificationText(note)}</span>
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-1 font-bold">Tap to view post</p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* --- FIXED NAVIGATION BAR (Inbox Highlighted) --- */}
+      {/* Navigation Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <button onClick={() => router.push('/')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg><span className="text-[10px] mt-1">Home</span></button>
         <button onClick={() => router.push('/connect')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span className="text-[10px] mt-1">Connect</span></button>
