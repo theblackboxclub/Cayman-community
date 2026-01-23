@@ -7,35 +7,35 @@ import {
   doc, getDoc, updateDoc, collection, query, where, getDocs, limit 
 } from 'firebase/firestore';
 
-// --- MEGA VIBES LIST ---
+// --- MEGA VIBES LIST (No Icons) ---
 const VIBES = [
   // Tech & Biz
-  { id: "tech", label: "Tech & Coding", icon: "💻", color: "bg-blue-100 text-blue-700" },
-  { id: "crypto", label: "Crypto & Stocks", icon: "📈", color: "bg-yellow-100 text-yellow-700" },
-  { id: "business", label: "Business/ entrepreneur", icon: "💼", color: "bg-gray-100 text-gray-700" },
-  { id: "realestate", label: "Real Estate", icon: "🏠", color: "bg-emerald-100 text-emerald-700" },
+  { id: "tech", label: "Tech & Coding", color: "bg-blue-100 text-blue-700" },
+  { id: "crypto", label: "Crypto & Stocks", color: "bg-yellow-100 text-yellow-700" },
+  { id: "business", label: "Business/Entrepreneur", color: "bg-gray-100 text-gray-700" },
+  { id: "realestate", label: "Real Estate", color: "bg-emerald-100 text-emerald-700" },
   
   // Island Life
-  { id: "beach", label: "Beach Bum", icon: "🏖️", color: "bg-cyan-100 text-cyan-700" },
-  { id: "boating", label: "Boating", icon: "🚤", color: "bg-blue-50 text-blue-600" },
-  { id: "diving", label: "Diving/Snorkel", icon: "🤿", color: "bg-indigo-100 text-indigo-700" },
-  { id: "fishing", label: "Fishing", icon: "🎣", color: "bg-teal-100 text-teal-700" },
+  { id: "beach", label: "Beach Bum", color: "bg-cyan-100 text-cyan-700" },
+  { id: "boating", label: "Boating", color: "bg-blue-50 text-blue-600" },
+  { id: "diving", label: "Diving/Snorkel", color: "bg-indigo-100 text-indigo-700" },
+  { id: "fishing", label: "Fishing", color: "bg-teal-100 text-teal-700" },
   
   // Lifestyle
-  { id: "gym", label: "Gym & Fitness", icon: "🏋️", color: "bg-orange-100 text-orange-700" },
-  { id: "yoga", label: "Yoga & Wellness", icon: "🧘", color: "bg-rose-100 text-rose-700" },
-  { id: "foodie", label: "Foodie", icon: "🌮", color: "bg-red-100 text-red-700" },
-  { id: "party", label: "Nightlife", icon: "🥂", color: "bg-purple-100 text-purple-700" },
-  { id: "420", label: "420 Friendly", icon: "🌿", color: "bg-green-100 text-green-700" },
+  { id: "gym", label: "Gym & Fitness", color: "bg-orange-100 text-orange-700" },
+  { id: "yoga", label: "Yoga & Wellness", color: "bg-rose-100 text-rose-700" },
+  { id: "foodie", label: "Foodie", color: "bg-red-100 text-red-700" },
+  { id: "party", label: "Nightlife", color: "bg-purple-100 text-purple-700" },
+  { id: "420", label: "420 Friendly", color: "bg-green-100 text-green-700" },
   
   // Hobbies
-  { id: "gaming", label: "Gaming", icon: "🎮", color: "bg-indigo-50 text-indigo-600" },
-  { id: "cars", label: "Car Enthusiast", icon: "🏎️", color: "bg-red-50 text-red-600" },
-  { id: "photography", label: "Photography", icon: "📸", color: "bg-gray-200 text-gray-800" },
-  { id: "art", label: "Art & Design", icon: "🎨", color: "bg-pink-100 text-pink-700" },
-  { id: "music", label: "Music Lover", icon: "🎵", color: "bg-violet-100 text-violet-700" },
-  { id: "pets", label: "Pet Lover", icon: "🐶", color: "bg-amber-100 text-amber-700" },
-  { id: "travel", label: "Travel", icon: "✈️", color: "bg-sky-100 text-sky-700" },
+  { id: "gaming", label: "Gaming", color: "bg-indigo-50 text-indigo-600" },
+  { id: "cars", label: "Car Enthusiast", color: "bg-red-50 text-red-600" },
+  { id: "photography", label: "Photography", color: "bg-gray-200 text-gray-800" },
+  { id: "art", label: "Art & Design", color: "bg-pink-100 text-pink-700" },
+  { id: "music", label: "Music Lover", color: "bg-violet-100 text-violet-700" },
+  { id: "pets", label: "Pet Lover", color: "bg-amber-100 text-amber-700" },
+  { id: "travel", label: "Travel", color: "bg-sky-100 text-sky-700" },
 ];
 
 export default function ConnectPage() {
@@ -117,12 +117,12 @@ export default function ConnectPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Finding your tribe...</div>;
 
   return (
-    // BLUE & SANDY THEME RESTORED 🌊🏖️
+    // BLUE & SANDY THEME 🌊🏖️
     <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-orange-50/40 pb-24">
       
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md px-6 py-4 sticky top-0 z-50 border-b border-white/50 flex justify-between items-center shadow-sm">
-        <h1 className="font-black text-xl text-cyan-900 tracking-tight">Connect ⚡</h1>
+        <h1 className="font-black text-xl text-cyan-900 tracking-tight">Connect</h1>
         {!isEditing && (
           <button onClick={() => setIsEditing(true)} className="text-xs font-bold text-cyan-700 bg-cyan-100 px-3 py-1.5 rounded-full hover:bg-cyan-200 transition">
             Edit Interests
@@ -145,10 +145,9 @@ export default function ConnectPage() {
                   <button 
                     key={v.id} 
                     onClick={() => toggleVibe(v.id)} 
-                    className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200 ring-offset-1 shadow-sm' : 'border-gray-100 bg-gray-50/50 text-gray-500 hover:bg-gray-100'}`}
+                    className={`px-3 py-3 rounded-xl border text-xs font-bold transition-all text-center ${isSelected ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200 ring-offset-1 shadow-sm text-cyan-900' : 'border-gray-100 bg-gray-50/50 text-gray-500 hover:bg-gray-100'}`}
                   >
-                    <span className="text-lg">{v.icon}</span>
-                    <span className={isSelected ? 'text-cyan-900' : 'text-gray-500'}>{v.label}</span>
+                    {v.label}
                   </button>
                 )
               })}
@@ -156,7 +155,7 @@ export default function ConnectPage() {
             
             <div className="sticky bottom-4">
                <button onClick={saveVibes} className="w-full bg-black text-white py-3 rounded-xl font-bold text-sm shadow-xl hover:scale-[1.02] transition transform active:scale-95">
-                 Find Matches 🚀
+                 Find Matches
                </button>
             </div>
           </div>
@@ -167,15 +166,14 @@ export default function ConnectPage() {
             {/* Explainer Banner */}
             {matches.length > 0 && (
               <div className="bg-cyan-100/50 border border-cyan-100 rounded-2xl p-4 text-center mb-6">
-                 <h2 className="text-sm font-black text-cyan-900 uppercase tracking-wide mb-1">Your Vibe Tribe 🌊</h2>
+                 <h2 className="text-sm font-black text-cyan-900 uppercase tracking-wide mb-1">Your Vibe Tribe</h2>
                  <p className="text-xs text-cyan-700 font-bold">These people share the same interests as you.</p>
               </div>
             )}
 
             {matches.length === 0 ? (
                <div className="text-center py-20 text-gray-400">
-                  <div className="text-5xl mb-4">🔭</div>
-                  <p className="font-black text-gray-600 text-lg">No matches found yet.</p>
+                  <p className="font-black text-gray-600 text-lg mb-2">No matches found yet.</p>
                   <p className="text-sm font-medium">Try changing your vibes to find more people!</p>
                </div>
             ) : (
@@ -195,13 +193,13 @@ export default function ConnectPage() {
                        <div>
                           <h3 className="font-black text-gray-900 text-base">{match.username}</h3>
                           
-                          {/* Shared Vibe Chips */}
+                          {/* Shared Vibe Chips (No Icons) */}
                           <div className="flex flex-wrap gap-1 mt-1.5 max-w-[160px]">
                              {match.commonVibes.slice(0,3).map(vid => {
                                const vConfig = VIBES.find(v => v.id === vid);
                                return (
-                                 <span key={vid} className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded-md flex items-center gap-1 border border-gray-200">
-                                   {vConfig?.icon} {vConfig?.label.split(' ')[0]}
+                                 <span key={vid} className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded-md border border-gray-200">
+                                   {vConfig?.label}
                                  </span>
                                )
                              })}
