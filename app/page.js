@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { db, auth } from '../firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
-  collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc 
+  collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc, addDoc, serverTimestamp 
 } from 'firebase/firestore';
+
+export const dynamic = 'force-dynamic';
 
 // --- VISUAL CONFIGURATION ---
 const flairColors = {
@@ -89,14 +91,34 @@ function FeedContent() {
     return () => unsubscribe();
   }, []);
 
+  // --- UPDATED HANDLE LIKE (WITH NOTIFICATIONS) ---
   const handleLike = async (post, e) => {
     e.preventDefault(); 
     if (!currentUser) return alert("Sign in to vote.");
+    
     const postRef = doc(db, "posts", post.id);
-    if (post.likedBy?.includes(currentUser.uid)) {
+    const isLiked = post.likedBy?.includes(currentUser.uid);
+
+    if (isLiked) {
+      // Unlike
       await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(currentUser.uid) });
     } else {
+      // Like
       await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(currentUser.uid) });
+      
+      // SEND NOTIFICATION (Only if liking someone else's post)
+      if (post.userId !== currentUser.uid) {
+        await addDoc(collection(db, "notifications"), {
+          toUserId: post.userId, // The author of the post
+          fromUserId: currentUser.uid, // The person liking
+          fromName: currentUser.displayName || "Someone",
+          type: 'like',
+          postId: post.id,
+          postTitle: post.title || "your post",
+          read: false,
+          createdAt: serverTimestamp()
+        });
+      }
     }
   };
 
@@ -289,7 +311,7 @@ function FeedContent() {
         })}
       </div>
 
-      {/* FIXED NAVIGATION BAR (Connect Logic) */}
+      {/* FIXED NAVIGATION BAR */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <button onClick={() => { setSelectedCommunity("All"); setSearchQuery(""); window.history.pushState({}, '', '/'); }} className="flex flex-col items-center text-black"><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg><span className="text-[10px] font-bold mt-1">Home</span></button>
         <button onClick={() => router.push('/connect')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span className="text-[10px] mt-1">Connect</span></button>
