@@ -18,12 +18,14 @@ export default function PostDetail() {
   const [replyingTo, setReplyingTo] = useState(null); 
   const [loading, setLoading] = useState(true);
 
+  // 1. Auth & Data
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
       setUser(u);
     });
 
     if (id) {
+      // Listen to Main Post
       const postRef = doc(db, "posts", id);
       const unsubPost = onSnapshot(postRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -33,10 +35,15 @@ export default function PostDetail() {
         }
       });
 
+      // Listen to Comments
       const commentsRef = collection(db, "posts", id, "comments");
       const q = query(commentsRef, orderBy("createdAt", "asc"));
       const unsubComments = onSnapshot(q, (snapshot) => {
-        const cData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const cData = snapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          likedBy: doc.data().likedBy || [] // SAFETY: Ensure array exists
+        }));
         setComments(cData);
         setLoading(false);
       });
@@ -46,48 +53,64 @@ export default function PostDetail() {
     return () => unsubscribeAuth();
   }, [id]);
 
-  const sendNotification = async (type, recipientId, extraData = {}) => {
-    if (!user || user.uid === recipientId) return; 
-    try {
-      await addDoc(collection(db, "notifications"), {
-        toUserId: recipientId,
-        fromUserId: user.uid,
-        fromName: user.displayName || "Someone",
-        type: type,
-        postId: id,
-        postTitle: post.title || "your post",
-        read: false,
-        createdAt: serverTimestamp(),
-        ...extraData
-      });
-    } catch (err) {
-      console.error("Failed to notify", err);
-    }
-  };
+  // --- ACTIONS ---
 
   const handleLikePost = async () => {
     if (!user) return alert("Please sign in.");
     const postRef = doc(db, "posts", id);
-    const isLiked = post.likedBy?.includes(user.uid);
+    // SAFETY: Use optional chaining + empty array default
+    const isLiked = (post.likedBy || []).includes(user.uid);
 
-    if (isLiked) {
-      await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(user.uid) });
-    } else {
-      await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(user.uid) });
-      sendNotification('like', post.userId);
+    try {
+      if (isLiked) {
+        await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(user.uid) });
+      } else {
+        await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(user.uid) });
+        // Notify
+        if (post.userId !== user.uid) {
+           await addDoc(collection(db, "notifications"), {
+             toUserId: post.userId,
+             fromUserId: user.uid,
+             fromName: user.displayName || "Someone",
+             type: 'like',
+             postId: id,
+             postTitle: post.title || "your post",
+             read: false,
+             createdAt: serverTimestamp()
+           });
+        }
+      }
+    } catch (err) {
+      console.error("Post like failed", err);
     }
   };
 
-  const handleLikeComment = async (comment, currentLikedBy) => {
+  const handleLikeComment = async (comment, currentLikedBy = []) => {
     if (!user) return alert("Please sign in.");
     const commentRef = doc(db, "posts", id, "comments", comment.id);
-    const isLiked = currentLikedBy?.includes(user.uid);
+    const isLiked = currentLikedBy.includes(user.uid);
 
-    if (isLiked) {
-      await updateDoc(commentRef, { likes: increment(-1), likedBy: arrayRemove(user.uid) });
-    } else {
-      await updateDoc(commentRef, { likes: increment(1), likedBy: arrayUnion(user.uid) });
-      sendNotification('like', comment.authorId, { commentText: comment.text });
+    try {
+      if (isLiked) {
+        await updateDoc(commentRef, { likes: increment(-1), likedBy: arrayRemove(user.uid) });
+      } else {
+        await updateDoc(commentRef, { likes: increment(1), likedBy: arrayUnion(user.uid) });
+        // Notify Comment Author
+        if (comment.authorId !== user.uid) {
+           await addDoc(collection(db, "notifications"), {
+             toUserId: comment.authorId,
+             fromUserId: user.uid,
+             fromName: user.displayName || "Someone",
+             type: 'like',
+             postId: id,
+             postTitle: "your comment",
+             read: false,
+             createdAt: serverTimestamp()
+           });
+        }
+      }
+    } catch (err) {
+      console.error("Comment like failed", err);
     }
   };
 
@@ -97,6 +120,7 @@ export default function PostDetail() {
     if (!user) return alert("Please sign in.");
 
     try {
+      // 1. Add Comment
       const commentsRef = collection(db, "posts", id, "comments");
       await addDoc(commentsRef, {
         text: newComment,
@@ -109,13 +133,37 @@ export default function PostDetail() {
         createdAt: serverTimestamp()
       });
 
+      // 2. Increment Post Comment Count (CRITICAL FIX for your issue)
       const postRef = doc(db, "posts", id);
       await updateDoc(postRef, { comments: increment(1) });
 
+      // 3. Notify
       if (replyingTo) {
-        sendNotification('reply', replyingTo.authorId, { commentText: newComment });
+        if (replyingTo.authorId !== user.uid) {
+          await addDoc(collection(db, "notifications"), {
+             toUserId: replyingTo.authorId,
+             fromUserId: user.uid,
+             fromName: user.displayName || "Someone",
+             type: 'reply',
+             postId: id,
+             commentText: newComment,
+             read: false,
+             createdAt: serverTimestamp()
+          });
+        }
       } else {
-        sendNotification('comment', post.userId, { commentText: newComment });
+        if (post.userId !== user.uid) {
+          await addDoc(collection(db, "notifications"), {
+             toUserId: post.userId,
+             fromUserId: user.uid,
+             fromName: user.displayName || "Someone",
+             type: 'comment',
+             postId: id,
+             commentText: newComment,
+             read: false,
+             createdAt: serverTimestamp()
+          });
+        }
       }
 
       setNewComment("");
@@ -125,11 +173,12 @@ export default function PostDetail() {
     }
   };
 
+  // --- RENDER HELPERS ---
   const topLevelComments = comments.filter(c => !c.replyTo);
   const getReplies = (commentId) => comments.filter(c => c.replyTo === commentId);
 
   const CommentCard = ({ data, isReply = false }) => {
-    const isLiked = data.likedBy?.includes(user?.uid);
+    const isLiked = (data.likedBy || []).includes(user?.uid);
 
     return (
       <div className={`bg-white p-3 rounded-xl shadow-sm border border-gray-100 mb-2 ${isReply ? 'ml-8 bg-gray-50/50' : ''}`}>
@@ -145,7 +194,7 @@ export default function PostDetail() {
         <p className="text-sm text-gray-800 mb-2 pl-8">{data.text}</p>
         <div className="flex items-center gap-4 pl-8">
            <button onClick={() => setReplyingTo(data)} className="text-gray-400 hover:text-cyan-600 text-xs font-bold flex items-center gap-1">Reply</button>
-           <button onClick={() => handleLikeComment(data, data.likedBy)} className={`flex items-center gap-1 text-xs font-bold ${isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}>
+           <button onClick={() => handleLikeComment(data, data.likedBy)} className={`flex items-center gap-1 text-xs font-bold transition ${isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}>
              <svg className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} stroke="currentColor" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
              {data.likes || 0}
            </button>
@@ -159,6 +208,7 @@ export default function PostDetail() {
 
   return (
     <div className="min-h-screen bg-white pb-24">
+      {/* Top Bar */}
       <div className="sticky top-0 bg-white/95 backdrop-blur z-10 px-4 py-3 border-b border-gray-100 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-gray-500 hover:bg-gray-100 p-2 rounded-full"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
         <span className="font-bold text-lg">Post</span>
@@ -185,8 +235,8 @@ export default function PostDetail() {
            )}
 
            <div className="flex gap-4">
-              <button onClick={handleLikePost} className={`flex items-center gap-1.5 font-bold text-sm transition ${post.likedBy?.includes(user?.uid) ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}>
-                 <svg className={`w-6 h-6 ${post.likedBy?.includes(user?.uid) ? 'fill-current' : ''}`} stroke="currentColor" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+              <button onClick={handleLikePost} className={`flex items-center gap-1.5 font-bold text-sm transition ${(post.likedBy || []).includes(user?.uid) ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}>
+                 <svg className={`w-6 h-6 ${(post.likedBy || []).includes(user?.uid) ? 'fill-current' : ''}`} stroke="currentColor" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                  {post.votes || 0}
               </button>
               <div className="text-gray-500 font-bold text-sm flex items-center gap-1.5">
