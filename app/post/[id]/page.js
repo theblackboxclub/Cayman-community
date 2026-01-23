@@ -46,23 +46,24 @@ export default function PostDetail() {
     return () => unsubscribeAuth();
   }, [id]);
 
-  // --- NOTIFICATION HELPER ---
   const sendNotification = async (type, recipientId, extraData = {}) => {
-    if (!user || user.uid === recipientId) return; // Don't notify yourself
-    await addDoc(collection(db, "notifications"), {
-      toUserId: recipientId,
-      fromUserId: user.uid,
-      fromName: user.displayName || "Someone",
-      type: type, // 'like' or 'comment'
-      postId: id,
-      postTitle: post.title || "your post",
-      read: false,
-      createdAt: serverTimestamp(),
-      ...extraData
-    });
+    if (!user || user.uid === recipientId) return; 
+    try {
+      await addDoc(collection(db, "notifications"), {
+        toUserId: recipientId,
+        fromUserId: user.uid,
+        fromName: user.displayName || "Someone",
+        type: type,
+        postId: id,
+        postTitle: post.title || "your post",
+        read: false,
+        createdAt: serverTimestamp(),
+        ...extraData
+      });
+    } catch (err) {
+      console.error("Failed to notify", err);
+    }
   };
-
-  // --- ACTIONS ---
 
   const handleLikePost = async () => {
     if (!user) return alert("Please sign in.");
@@ -73,7 +74,6 @@ export default function PostDetail() {
       await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(user.uid) });
     } else {
       await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(user.uid) });
-      // Send Notification
       sendNotification('like', post.userId);
     }
   };
@@ -87,7 +87,6 @@ export default function PostDetail() {
       await updateDoc(commentRef, { likes: increment(-1), likedBy: arrayRemove(user.uid) });
     } else {
       await updateDoc(commentRef, { likes: increment(1), likedBy: arrayUnion(user.uid) });
-      // Send Notification to Comment Author
       sendNotification('like', comment.authorId, { commentText: comment.text });
     }
   };
@@ -99,7 +98,6 @@ export default function PostDetail() {
 
     try {
       const commentsRef = collection(db, "posts", id, "comments");
-      
       await addDoc(commentsRef, {
         text: newComment,
         author: user.displayName || "Anonymous",
@@ -114,7 +112,6 @@ export default function PostDetail() {
       const postRef = doc(db, "posts", id);
       await updateDoc(postRef, { comments: increment(1) });
 
-      // Send Notification (If reply, notify comment author. If comment, notify post author)
       if (replyingTo) {
         sendNotification('reply', replyingTo.authorId, { commentText: newComment });
       } else {
@@ -128,7 +125,6 @@ export default function PostDetail() {
     }
   };
 
-  // --- RENDER HELPERS ---
   const topLevelComments = comments.filter(c => !c.replyTo);
   const getReplies = (commentId) => comments.filter(c => c.replyTo === commentId);
 
