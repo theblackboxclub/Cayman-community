@@ -46,6 +46,7 @@ export default function ConnectPage() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
 
+  // 1. Load Data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (!u) return router.push('/signup');
@@ -65,11 +66,12 @@ export default function ConnectPage() {
     return () => unsubscribe();
   }, []);
 
+  // 2. Logic: Limit to 5
   const toggleVibe = (vibeId) => {
     if (myVibes.includes(vibeId)) {
       setMyVibes(myVibes.filter(id => id !== vibeId));
     } else {
-      if (myVibes.length >= 8) return alert("Pick your top 8 max!");
+      if (myVibes.length >= 5) return alert("You can only pick your top 5 interests!");
       setMyVibes([...myVibes, vibeId]);
     }
   };
@@ -115,60 +117,108 @@ export default function ConnectPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Finding your tribe...</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-white pb-24">
+    // BLUE & SANDY THEME RESTORED 🌊🏖️
+    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-orange-50/40 pb-24">
       
-      <div className="bg-white/90 backdrop-blur-md px-6 py-4 sticky top-0 z-50 border-b border-gray-100 flex justify-between items-center">
-        <h1 className="font-black text-xl text-gray-900">Vibe Match ⚡</h1>
+      {/* Header */}
+      <div className="bg-white/80 backdrop-blur-md px-6 py-4 sticky top-0 z-50 border-b border-white/50 flex justify-between items-center shadow-sm">
+        <h1 className="font-black text-xl text-cyan-900 tracking-tight">Connect ⚡</h1>
         {!isEditing && (
-          <button onClick={() => setIsEditing(true)} className="text-xs font-bold text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-full">Edit Vibes</button>
+          <button onClick={() => setIsEditing(true)} className="text-xs font-bold text-cyan-700 bg-cyan-100 px-3 py-1.5 rounded-full hover:bg-cyan-200 transition">
+            Edit Interests
+          </button>
         )}
       </div>
 
       <div className="max-w-md mx-auto p-4">
+        
         {isEditing ? (
-          <div className="bg-white p-6 rounded-3xl shadow-lg border border-gray-50 animate-fade-in">
-            <h2 className="text-lg font-bold text-gray-800 mb-2">What are you into?</h2>
-            <p className="text-sm text-gray-400 mb-6">Select tags to find likeminded locals.</p>
+          /* --- SELECTION SCREEN --- */
+          <div className="bg-white/90 p-6 rounded-3xl shadow-lg border border-white animate-fade-in">
+            <h2 className="text-lg font-black text-gray-800 mb-1">What are you into?</h2>
+            <p className="text-sm text-gray-500 mb-6 font-medium">Select up to 5 tags to find likeminded locals.</p>
+            
             <div className="grid grid-cols-2 gap-3 mb-6">
               {VIBES.map(v => {
                 const isSelected = myVibes.includes(v.id);
                 return (
-                  <button key={v.id} onClick={() => toggleVibe(v.id)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${isSelected ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200 ring-offset-1' : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
-                    <span className="text-xl">{v.icon}</span>
+                  <button 
+                    key={v.id} 
+                    onClick={() => toggleVibe(v.id)} 
+                    className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200 ring-offset-1 shadow-sm' : 'border-gray-100 bg-gray-50/50 text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    <span className="text-lg">{v.icon}</span>
                     <span className={isSelected ? 'text-cyan-900' : 'text-gray-500'}>{v.label}</span>
                   </button>
                 )
               })}
             </div>
-            <button onClick={saveVibes} className="w-full bg-black text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:scale-[1.02] transition">Find Matches 🚀</button>
+            
+            <div className="sticky bottom-4">
+               <button onClick={saveVibes} className="w-full bg-black text-white py-3 rounded-xl font-bold text-sm shadow-xl hover:scale-[1.02] transition transform active:scale-95">
+                 Find Matches 🚀
+               </button>
+            </div>
           </div>
         ) : (
+          /* --- RESULTS SCREEN --- */
           <div className="space-y-4">
+            
+            {/* Explainer Banner */}
+            {matches.length > 0 && (
+              <div className="bg-cyan-100/50 border border-cyan-100 rounded-2xl p-4 text-center mb-6">
+                 <h2 className="text-sm font-black text-cyan-900 uppercase tracking-wide mb-1">Your Vibe Tribe 🌊</h2>
+                 <p className="text-xs text-cyan-700 font-bold">These people share the same interests as you.</p>
+              </div>
+            )}
+
             {matches.length === 0 ? (
-               <div className="text-center py-10 text-gray-400">
-                  <div className="text-4xl mb-2">🔭</div>
-                  <p className="font-bold">No matches found yet.</p>
-                  <p className="text-sm">Try adding more vibes!</p>
+               <div className="text-center py-20 text-gray-400">
+                  <div className="text-5xl mb-4">🔭</div>
+                  <p className="font-black text-gray-600 text-lg">No matches found yet.</p>
+                  <p className="text-sm font-medium">Try changing your vibes to find more people!</p>
                </div>
             ) : (
                matches.map(match => (
-                 <div key={match.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition">
-                    <div className="flex items-center gap-3">
-                       <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden border border-gray-100">
-                          {match.profilePic ? <img src={match.profilePic} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-cyan-100 text-cyan-700 font-bold text-lg">{match.username?.[0]?.toUpperCase()}</div>}
+                 <div key={match.id} className="bg-white p-4 rounded-3xl shadow-sm border border-orange-50/50 flex items-center justify-between hover:shadow-md transition hover:scale-[1.01] cursor-default">
+                    <div className="flex items-center gap-4">
+                       <div className="w-14 h-14 rounded-full bg-gray-100 overflow-hidden border-2 border-white shadow-sm">
+                          {match.profilePic ? (
+                            <img src={match.profilePic} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-cyan-50 text-cyan-600 font-black text-xl">
+                              {match.username?.[0]?.toUpperCase()}
+                            </div>
+                          )}
                        </div>
+                       
                        <div>
-                          <h3 className="font-bold text-gray-900">{match.username}</h3>
-                          <div className="flex flex-wrap gap-1 mt-1 max-w-[150px]">
+                          <h3 className="font-black text-gray-900 text-base">{match.username}</h3>
+                          
+                          {/* Shared Vibe Chips */}
+                          <div className="flex flex-wrap gap-1 mt-1.5 max-w-[160px]">
                              {match.commonVibes.slice(0,3).map(vid => {
                                const vConfig = VIBES.find(v => v.id === vid);
-                               return <span key={vid} className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-md">{vConfig?.icon}</span>
+                               return (
+                                 <span key={vid} className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded-md flex items-center gap-1 border border-gray-200">
+                                   {vConfig?.icon} {vConfig?.label.split(' ')[0]}
+                                 </span>
+                               )
                              })}
-                             {match.commonVibes.length > 3 && <span className="text-[10px] text-gray-400">+{match.commonVibes.length - 3}</span>}
+                             {match.commonVibes.length > 3 && (
+                               <span className="text-[10px] font-bold text-gray-400 py-1">+{match.commonVibes.length - 3}</span>
+                             )}
                           </div>
                        </div>
                     </div>
-                    <button onClick={() => startChat(match)} className="bg-black text-white p-2 rounded-full shadow hover:scale-110 transition"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg></button>
+                    
+                    {/* Action */}
+                    <button 
+                      onClick={() => startChat(match)}
+                      className="bg-black text-white p-3 rounded-2xl shadow-lg hover:bg-gray-800 hover:scale-110 transition active:scale-90"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                    </button>
                  </div>
                ))
             )}
@@ -176,7 +226,7 @@ export default function ConnectPage() {
         )}
       </div>
       
-      {/* NAV BAR FIX */}
+      {/* Navigation Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <button onClick={() => router.push('/')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg><span className="text-[10px] mt-1">Home</span></button>
         <button onClick={() => router.push('/connect')} className="flex flex-col items-center text-black"><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span className="text-[10px] font-bold mt-1">Connect</span></button>
