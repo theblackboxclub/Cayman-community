@@ -8,6 +8,9 @@ import {
   collection, onSnapshot, query, orderBy, doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc, addDoc, serverTimestamp 
 } from 'firebase/firestore';
 
+// Note: 'export const dynamic' removed to fix build error. 
+// The Suspense boundary handles the dynamic data requirements.
+
 // --- VISUAL CONFIGURATION ---
 const flairColors = {
   "Question": "bg-orange-100 text-orange-700 border-orange-200",
@@ -89,7 +92,7 @@ function FeedContent() {
     return () => unsubscribe();
   }, []);
 
-  // --- UPDATED HANDLE LIKE (WITH NOTIFICATIONS) ---
+  // --- HANDLE LIKE (WITH SAFE NOTIFICATIONS) ---
   const handleLike = async (post, e) => {
     e.preventDefault(); 
     if (!currentUser) return alert("Sign in to vote.");
@@ -98,18 +101,16 @@ function FeedContent() {
     const isLiked = post.likedBy?.includes(currentUser.uid);
 
     if (isLiked) {
-      // Unlike
       await updateDoc(postRef, { votes: increment(-1), likedBy: arrayRemove(currentUser.uid) });
     } else {
-      // Like
       await updateDoc(postRef, { votes: increment(1), likedBy: arrayUnion(currentUser.uid) });
       
-      // SEND NOTIFICATION (Only if liking someone else's post)
+      // Send Notification (Safe Mode)
       if (post.userId !== currentUser.uid) {
         try {
           await addDoc(collection(db, "notifications"), {
-            toUserId: post.userId, // The author of the post
-            fromUserId: currentUser.uid, // The person liking
+            toUserId: post.userId,
+            fromUserId: currentUser.uid,
             fromName: currentUser.displayName || "Someone",
             type: 'like',
             postId: post.id,
@@ -118,7 +119,7 @@ function FeedContent() {
             createdAt: serverTimestamp()
           });
         } catch (err) {
-          console.log("Notification error (ignored):", err);
+          console.log("Notification skipped");
         }
       }
     }
@@ -129,7 +130,6 @@ function FeedContent() {
     e.stopPropagation(); 
     if (!currentUser) return alert("Sign in to vote.");
 
-    // Ensure votes array exists
     const newOptions = post.pollOptions.map(opt => ({
       ...opt,
       votes: opt.votes ? [...opt.votes] : []
@@ -239,7 +239,6 @@ function FeedContent() {
                 </div>
                 
                 <div className="pb-2">
-                  {/* FLAIR BADGE */}
                   {post.flair && flairColors[post.flair] && (
                     <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider mb-2 border ${flairColors[post.flair]}`}>
                       {post.flair}
@@ -249,14 +248,12 @@ function FeedContent() {
                   <h3 className="text-base font-bold text-gray-900 leading-snug mb-1.5">{post.title}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{post.body}</p>
                   
-                  {/* Images */}
                   {post.mediaUrl && (
                     <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 h-56 relative shadow-inner">
                       <img src={post.mediaUrl} className="w-full h-full object-cover" />
                     </div>
                   )}
 
-                  {/* Links */}
                   {post.linkUrl && (
                     <a 
                       href={post.linkUrl.startsWith('http') ? post.linkUrl : `https://${post.linkUrl}`}
@@ -275,12 +272,11 @@ function FeedContent() {
                     </a>
                   )}
 
-                  {/* Polls */}
                   {isPoll && (
                     <div className="mb-3 space-y-2">
                       {post.pollOptions.map((opt, idx) => {
-                        const voteCount = opt.votes ? opt.votes.length : 0;
-                        const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                        const percentage = totalVotes > 0 ? Math.round((opt.votes ? opt.votes.length : 0) / totalVotes * 100) : 0;
+                        const isWinner = totalVotes > 0 && percentage >= Math.max(...post.pollOptions.map(o => totalVotes > 0 ? ((o.votes ? o.votes.length : 0) / totalVotes * 100) : 0));
                         const isMyVote = opt.votes && opt.votes.includes(currentUser?.uid);
                         
                         return (
@@ -318,7 +314,7 @@ function FeedContent() {
         })}
       </div>
 
-      {/* FIXED NAVIGATION BAR (Connect Logic) */}
+      {/* FIXED NAVIGATION BAR */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
         <button onClick={() => { setSelectedCommunity("All"); setSearchQuery(""); window.history.pushState({}, '', '/'); }} className="flex flex-col items-center text-black"><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg><span className="text-[10px] font-bold mt-1">Home</span></button>
         <button onClick={() => router.push('/connect')} className="flex flex-col items-center text-gray-400 hover:text-black"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span className="text-[10px] mt-1">Connect</span></button>
@@ -327,5 +323,13 @@ function FeedContent() {
         <Link href="/messages" className="flex flex-col items-center text-gray-400 hover:text-black transition"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg><span className="text-[10px] mt-1">Inbox</span></Link>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 font-bold">Loading...</div>}>
+      <FeedContent />
+    </Suspense>
   );
 }
